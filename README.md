@@ -115,6 +115,41 @@ curl -X POST localhost:8000/generate -H 'content-type: application/json' \
   -d '{"description": "a single nginx web server on port 80 with 1 cpu and 512MB memory"}'
 ```
 
+### Playground
+
+`serve --playground` also mounts a browser UI at `/playground`: a split-screen view of the
+interactive draft/answer loop that the CLI's interactive mode and `SLASession` already do,
+without reading JSON on a terminal.
+
+```
+uv run oakestra-sla-gen serve --playground
+```
+
+The left pane is the conversation. Each round says whether the draft passed validation (and
+on which attempt), what changed since the previous draft, and lists the model's open
+questions. You can keep each assumption or answer it right there, then update the draft or
+accept it. The right pane shows the current SLA in one of two views:
+
+- **Visual** shows a map of the services, what's reachable from outside, and which service
+  references another's service IP. Below it is a section per service, with changed fields and
+  validation problems marked.
+- **Code** is the SLA JSON. You can edit it, it's re-checked against `POST /validate` as you
+  type, and clicking a problem jumps to its line.
+
+The header shows the model the server was started with.
+
+This adds a few endpoints behind `/playground`, all backed by an in-memory session store:
+
+- `POST /playground/sessions` starts a session from a description (same fields as
+  `POST /generate`, plus `check_images`) and returns `{session_id, sla, questions, attempts}`.
+- `POST /playground/sessions/{id}/answer` continues a session with `{text}` and returns the
+  same shape.
+- `DELETE /playground/sessions/{id}` drops a session.
+- `GET /playground/info` returns `{model}`, the model name the page shows.
+
+Sessions live only in this process's memory - they don't survive a restart and aren't shared
+across worker processes - and are capped in count and by idle time, oldest evicted first.
+
 ## How it works
 
 1. A Pydantic model (`models.py`) constrains what the LLM can produce. It only covers a

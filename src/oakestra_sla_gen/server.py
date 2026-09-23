@@ -36,7 +36,12 @@ class ValidateResponse(BaseModel):
     errors: list[str]
 
 
-def create_app(structured_llm_factory: Callable[[str], Any]) -> FastAPI:
+def create_app(
+    structured_llm_factory: Callable[[str], Any],
+    *,
+    playground: bool = False,
+    model: str | None = None,
+) -> FastAPI:
     """Build the app around `structured_llm_factory(method)`.
 
     The LLM connection is set up once at startup, but `method` comes in with each
@@ -85,5 +90,12 @@ def create_app(structured_llm_factory: Callable[[str], Any]) -> FastAPI:
     def validate(sla: dict[str, Any]) -> ValidateResponse:
         errors = validate_sla(sla)
         return ValidateResponse(valid=not errors, errors=errors)
+
+    if playground:
+        # Imported lazily: playground.py imports GenerateRequest back from this module, so
+        # importing it at module scope here would be a circular import at load time.
+        from .playground import add_playground
+
+        add_playground(app, structured_llm_factory, model=model)
 
     return app
