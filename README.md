@@ -96,8 +96,9 @@ uv run oakestra-sla-gen serve          # http://127.0.0.1:8000, docs at /docs
 uv run oakestra-sla-gen serve --host 0.0.0.0 --port 9000 --model openai/gpt-oss-20b
 ```
 
-`serve` takes the same `--base-url` / `--model` / `--api-key` flags (and env vars) as
-generation. They're fixed when the server starts. Everything else is set per request:
+`serve` takes the same `--base-url` / `--model` / `--api-key` / `--reasoning-effort` flags
+(and env vars) as generation. They're fixed when the server starts. Everything else is set
+per request:
 
 - `POST /generate` with `{"description": "...", "method": "prompt", "customer_id": "Admin",
   "max_retries": 3}` (only `description` is required). Returns the verified SLA with `200`,
@@ -113,6 +114,92 @@ generation. They're fixed when the server starts. Everything else is set per req
 curl -X POST localhost:8000/generate -H 'content-type: application/json' \
   -d '{"description": "a single nginx web server on port 80 with 1 cpu and 512MB memory"}'
 ```
+
+### Playground
+
+`serve --playground` also mounts a browser UI at `/playground`: a split-screen view of the
+interactive draft/answer loop that the CLI's interactive mode and `SLASession` already do,
+without reading JSON on a terminal.
+
+```
+uv run oakestra-sla-gen serve --playground
+```
+
+The left pane is the conversation. Each round says whether the draft passed validation (and
+on which attempt), what changed since the previous draft, and lists the model's open
+questions. You can keep each assumption or answer it right there, then update the draft or
+accept it. The right pane shows the current SLA in one of two views:
+
+- **Visual** shows a map of the services, what's reachable from outside, and which service
+  references another's service IP. Below it is a section per service, with changed fields and
+  validation problems marked.
+- **Code** is the SLA JSON. You can edit it, it's re-checked against `POST /validate` as you
+  type, and clicking a problem jumps to its line.
+
+The header shows the model the server was started with.
+
+This adds a few endpoints behind `/playground`, all backed by an in-memory session store:
+
+- `POST /playground/sessions` starts a session from a description (same fields as
+  `POST /generate`, plus `check_images`) and returns `{session_id, sla, questions, attempts}`.
+- `POST /playground/sessions/{id}/answer` continues a session with `{text}` and returns the
+  same shape.
+- `DELETE /playground/sessions/{id}` drops a session.
+- `GET /playground/info` returns `{model}`, the model name the page shows.
+
+Sessions live only in this process's memory - they don't survive a restart and aren't shared
+across worker processes - and are capped in count and by idle time, oldest evicted first.
+
+## Docker
+
+`compose.yaml` builds the image and starts the HTTP server with the playground enabled:
+
+```
+docker compose up --build              # http://localhost:8000/playground
+PORT=9000 docker compose up --build    # if 8000 is taken on the host
+```
+
+The LLM isn't part of the container. By default it talks to LM Studio on the Docker host at
+`http://host.docker.internal:1234/v1`. Set `OPENAI_BASE_URL`, `OPENAI_API_KEY` and
+`OAKESTRA_SLA_MODEL` in the environment (or a `.env` file) to point it somewhere else. On Linux,
+LM Studio has to listen on all interfaces rather than only `127.0.0.1`, or the container can't
+reach it. Docker Desktop on macOS and Windows forwards to the host's loopback, so it works as is.
+
+## Oakestra addon
+
+The server can run as an [Oakestra addon](https://github.com/oakestra/oakestra/tree/develop/addons_engine):
+the root orchestrator's addons engine then runs the container next to the control plane,
+on the `oakestra` Docker network. `oakestra-addon.json` is the marketplace entry for it.
+
+The image is published to `ghcr.io/robertjndw/oakestra-sla-gen` (amd64 and arm64) by
+`.github/workflows/image.yml`: `latest` from `main`, plus a version tag for each `v*` git tag.
+The marketplace pulls the image to approve an addon, so the package has to be public (or the
+root orchestrator host has to be logged in to GHCR).
+
+Before registering, check `environment` in `oakestra-addon.json`. The addons engine starts the
+container with plain `docker run` options and can't add `extra_hosts`, so
+`host.docker.internal` doesn't resolve there. The default, `172.17.0.1`, is the Docker bridge
+gateway on a Linux host, which reaches an LLM server on the root orchestrator host as long as
+it listens on all interfaces. For an LLM elsewhere, use its real address. Marketplace entries
+are stored and shown in plain text, so don't put a real API key in there on a shared setup.
+
+Then register and install it (ports as in a default root orchestrator):
+
+```
+# register with the marketplace, it moves from under_review to approved once the image pulled
+curl -X POST http://<root-orchestrator>:11102/api/v1/marketplace/addons \
+  -H 'content-type: application/json' -d @oakestra-addon.json
+
+# install it, using the _id from the response above
+curl -X POST http://<root-orchestrator>:11101/api/v1/addons \
+  -H 'content-type: application/json' -d '{"marketplace_id": "<_id>"}'
+```
+
+The same works from the addons dashboard on port 11103. The addons monitor polls every 30
+seconds by default, after which the playground is at
+`http://<root-orchestrator>:8000/playground`. In `ports`, the key is the container port and the
+value is the host port (the Docker SDK's convention, the dashboard's form labels them the other
+way round), so change the value to move it off 8000.
 
 ## How it works
 

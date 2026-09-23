@@ -1,0 +1,18 @@
+{
+  "name": "sla-generator",
+  "description": "Generate verified Oakestra SLAs from a free-text description. HTTP API on port 8000, browser playground at /playground.",
+  "services": [
+    {
+      "service_name": "sla_gen",
+      "image": "ghcr.io/robertjndw/oakestra-sla-gen:latest",
+      "ports": {
+        "8000/tcp": "8000"
+      },
+      "environment": {
+        "OPENAI_BASE_URL": "http://172.17.0.1:1234/v1",
+        "OPENAI_API_KEY": "lm-studio",
+        "OAKESTRA_SLA_MODEL": "qwen/qwen3.8-27b"
+      }
+    }
+  ]
+}

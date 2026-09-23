@@ -165,3 +165,43 @@ def test_interactive_loop_q_aborts(monkeypatch):
 
     with pytest.raises(cli._Aborted):
         cli._run_interactive(session, "deploy something")
+
+
+# -- serve --------------------------------------------------------------------
+
+
+def test_serve_playground_flag_and_reasoning_effort(monkeypatch, capsys):
+    # serve builds an LLM too, so it needs --reasoning-effort just like generation does.
+    import uvicorn
+
+    captured = {}
+    monkeypatch.setattr(
+        cli, "build_llm", lambda **kwargs: captured.setdefault("build_llm_kwargs", kwargs)
+    )
+    monkeypatch.setattr(
+        uvicorn,
+        "run",
+        lambda app, host, port: captured.update(app=app, host=host, port=port),
+    )
+
+    code = cli._serve_command(["--playground", "--reasoning-effort", "high"])
+
+    assert code == 0
+    assert captured["build_llm_kwargs"]["reasoning_effort"] == "high"
+    assert captured["host"] == "127.0.0.1"
+    assert captured["port"] == 8000
+    assert "/playground" in [route.path for route in captured["app"].routes]
+    assert "playground at http://127.0.0.1:8000/playground" in capsys.readouterr().err
+
+
+def test_serve_without_playground_flag_skips_playground_routes(monkeypatch):
+    import uvicorn
+
+    captured = {}
+    monkeypatch.setattr(cli, "build_llm", lambda **kwargs: object())
+    monkeypatch.setattr(uvicorn, "run", lambda app, host, port: captured.update(app=app))
+
+    code = cli._serve_command([])
+
+    assert code == 0
+    assert "/playground" not in [route.path for route in captured["app"].routes]
