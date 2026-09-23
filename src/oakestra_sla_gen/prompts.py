@@ -118,3 +118,39 @@ CORRECTION_TEMPLATE = """\
 Your previous SLA was invalid. Fix these errors and produce a corrected SLA:
 {errors}
 """
+
+# Part of the human message rather than SYSTEM_PROMPT, so plain-text requests don't carry it.
+# Not a str.format template: the ${VAR:-default} example has literal braces.
+COMPOSE_TEMPLATE = """\
+Translate this Docker Compose file into one Oakestra application, one microservice per \
+service. Apply these rules on top of the ones already given for the SLA:
+
+- Application name: the top-level `name` if set, otherwise the main service's name. Every \
+service becomes a microservice named after it, with non-alphanumeric characters stripped and \
+the result truncated to 10 characters.
+- `image` becomes `code`, fully qualified and keeping the tag, e.g. nginx ->
+  docker.io/library/nginx:latest, grafana/grafana:10 -> docker.io/grafana/grafana:10.
+- `ports`: short syntax "8080:80" stays as is, a bare "80" becomes "80:80", a host IP prefix
+  is dropped, and "/udp" is kept. Long syntax (target/published/protocol) is converted the
+  same way. Join multiple mappings with ';'. Expand ranges where practical, otherwise ask a
+  question instead.
+- `environment` (list or map form) becomes `KEY=value`. For "${VAR:-default}" use the
+  default. With no default, or with `env_file`, keep what's known and ask a question.
+- `command` becomes `cmd` (split a string command into its arguments). `entrypoint` has no
+  equivalent in Oakestra - ask a question instead of dropping it silently.
+- Resources: read `deploy.resources.limits`/`reservations` (`cpus`, `memory`), or the
+  shorthand `cpus`/`mem_limit`. Round vcpus up to a whole number and convert memory to MB. A
+  GPU device reservation becomes `vgpus`. With no limits given, fall back to the realistic
+  minimums described above.
+- Compose service names don't resolve in Oakestra. Give every service that another one
+  refers to - by hostname in an environment value, a URL such as
+  "postgres://user:pass@db:5432/app", `depends_on`, or `links` - an rr_ip, and rewrite every
+  such reference to use it.
+- Drop fields Oakestra has no equivalent for: `volumes`, `networks`, `healthcheck`,
+  `restart`, `secrets`, `configs`. Ask a question when dropping one changes behavior: a named
+  or bind volume (data won't persist), or a `build:` with no `image:` (the image has to be
+  pushed to a registry before Oakestra can run it).
+
+Compose file:
+```yaml
+"""

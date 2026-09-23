@@ -26,6 +26,7 @@ uv run oakestra-sla-gen "a single nginx web server on port 80 with 1 cpu and 512
 uv run oakestra-sla-gen "nginx on port 8080 with 1 cpu and 256MB" -o sla.json
 uv run oakestra-sla-gen -f description.txt
 echo "..." | uv run oakestra-sla-gen
+uv run oakestra-sla-gen --compose compose.yaml "pin api to cluster edge1"
 uv run oakestra-sla-gen validate existing_sla.json
 ```
 
@@ -78,6 +79,12 @@ Flags for generation:
 | `--no-image-check` | - | off - skip verifying that images exist in their registry |
 | `--no-interactive` | - | off - never prompt, see above |
 | `-v` / `--verbose` | - | log each attempt and its errors to stderr |
+| `-c` / `--compose` | - | translate a docker compose file instead of free text, see below |
+
+With `-c`/`--compose FILE`, the positional text, `-f`, and stdin become optional notes
+alongside the compose file (e.g. `--compose compose.yaml "pin web to edge1"`) rather than the
+whole description. A compose file that fails to parse, or doesn't exist, exits `2`. See
+"Docker Compose input" below for what's translated.
 
 Exit codes: `0` a verified SLA was printed, `1` generation failed or was aborted (`q`) within
 the retry budget (errors on stderr), `2` usage or connection error, `3` (non-interactive
@@ -100,13 +107,16 @@ uv run oakestra-sla-gen serve --host 0.0.0.0 --port 9000 --model openai/gpt-oss-
 (and env vars) as generation. They're fixed when the server starts. Everything else is set
 per request:
 
-- `POST /generate` with `{"description": "...", "method": "prompt", "customer_id": "Admin",
-  "max_retries": 3}` (only `description` is required). Returns the verified SLA with `200`,
-  `422` with `{"detail", "errors", "last_candidate"}` if no valid SLA came out within
-  `max_retries` (capped at 10), `422` with `{"detail", "questions"}` if the description was
-  too vague to draft anything at all, or `502` if the LLM server failed. The server is a
-  single-shot endpoint - it doesn't expose the interactive session, so a vague description or
-  one with a lot of open questions just comes back as questions once, with no follow-up turn.
+- `POST /generate` with `{"description": "...", "compose": "...", "method": "prompt",
+  "customer_id": "Admin", "max_retries": 3}`. Either `description` or `compose` is required
+  (both together are fine - `compose` becomes the translation, `description` becomes notes
+  alongside it). Returns the verified SLA with `200`, `422` with `{"detail", "errors",
+  "last_candidate"}` if no valid SLA came out within `max_retries` (capped at 10), `422` with
+  `{"detail", "questions"}` if the input was too vague to draft anything at all, `422` with a
+  readable `msg` if `compose` isn't a usable compose file, or `502` if the LLM server failed.
+  The server is a single-shot endpoint - it doesn't expose the interactive session, so a vague
+  description or one with a lot of open questions just comes back as questions once, with no
+  follow-up turn.
 - `POST /validate` with an SLA document as the body. Always returns `200` with
   `{"valid": bool, "errors": [...]}`.
 
@@ -125,6 +135,9 @@ without reading JSON on a terminal.
 uv run oakestra-sla-gen serve --playground
 ```
 
+You can also upload a docker compose file instead of typing a description - the composer has
+an upload button (and accepts a drag-and-drop) for it, with an optional note field alongside.
+
 The left pane is the conversation. Each round says whether the draft passed validation (and
 on which attempt), what changed since the previous draft, and lists the model's open
 questions. You can keep each assumption or answer it right there, then update the draft or
@@ -140,8 +153,9 @@ The header shows the model the server was started with.
 
 This adds a few endpoints behind `/playground`, all backed by an in-memory session store:
 
-- `POST /playground/sessions` starts a session from a description (same fields as
-  `POST /generate`, plus `check_images`) and returns `{session_id, sla, questions, attempts}`.
+- `POST /playground/sessions` starts a session from a description and/or compose file (same
+  fields as `POST /generate`, plus `check_images`) and returns
+  `{session_id, sla, questions, attempts}`.
 - `POST /playground/sessions/{id}/answer` continues a session with `{text}` and returns the
   same shape.
 - `DELETE /playground/sessions/{id}` drops a session.
@@ -149,6 +163,27 @@ This adds a few endpoints behind `/playground`, all backed by an in-memory sessi
 
 Sessions live only in this process's memory - they don't survive a restart and aren't shared
 across worker processes - and are capped in count and by idle time, oldest evicted first.
+
+## Docker Compose input
+
+The CLI's `--compose`, `/generate`'s `compose` field, and the playground's upload button all
+take a docker compose file and translate it with the LLM into an Oakestra application, one
+microservice per service - the same validate/retry loop and image/plausibility questions run
+on the result as for a text description. `--compose`/`compose` isn't docker-compose-specific
+parsing: the compose text (and any notes) are sent to the model with a set of translation
+rules, so the same review-and-answer flow applies if it gets something wrong.
+
+What's translated: `image` becomes a fully qualified `code`; `ports` (short or long syntax,
+ranges where practical); `environment` (list or map, `${VAR:-default}` resolved);
+`command`; and resources from `deploy.resources`/`cpus`/`mem_limit`, falling back to the
+usual realistic minimums when none are given. **Compose service names don't resolve in
+Oakestra**: any service another one refers to (by hostname, a connection URL, `depends_on`,
+or `links`) gets a service IP (`addresses.rr_ip`), and every reference to it is rewritten to
+that IP.
+
+What's dropped, with a question raised when it matters: `volumes`, `networks`,
+`healthcheck`, `restart`, `secrets`, `configs`, and `entrypoint` (no Oakestra equivalent).
+Uploads are capped at 64,000 characters.
 
 ## Docker
 

@@ -16,20 +16,29 @@ const EXAMPLES = [
   { text: "Deploy my app", note: "Too vague on purpose, so you can see the model ask questions first" },
 ];
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+// Same limit as MAX_COMPOSE_CHARS on the server, checked here too so a huge file fails fast.
+const MAX_COMPOSE_CHARS = 64_000;
 
 const threadEl = $("thread");
 const introEl = $("intro");
+const composerEl = $("composer");
 const inputEl = $("composer-input");
 const sendBtn = $("send-btn");
 const acceptBtn = $("accept-btn");
 const hintEl = $("composer-hint");
 const progressEl = $("progress");
+const composeFileInput = $("compose-file");
+const composeUploadBtn = $("compose-upload-btn");
+const composeChip = $("compose-chip");
+const composeChipName = $("compose-chip-name");
+const composeChipRemove = $("compose-chip-remove");
 
 // Bumped by every send and by New session, so a response that arrives after the
 // conversation moved on is dropped instead of rendered into the wrong thread.
 let requestToken = 0;
-let pending = null;     // {el, timer} of the in-progress round
-let activeForm = null;  // open questions of the latest round, with their controls
+let pending = null;         // {el, timer} of the in-progress round
+let activeForm = null;      // open questions of the latest round, with their controls
+let attachedCompose = null; // {name, text} of an uploaded compose file
 
 function scrollThread() { threadEl.scrollTop = threadEl.scrollHeight; }
 
@@ -78,6 +87,29 @@ function endTurn() {
   renderOutput();
 }
 
+// Only the first message can carry a compose file.
+const hasAttachment = () => !state.sessionId && !!attachedCompose;
+
+async function attachFile(file) {
+  const text = await file.text();
+  if (text.length > MAX_COMPOSE_CHARS) {
+    notice("File too large", `${file.name} is ${text.length.toLocaleString()} characters; the limit is ${MAX_COMPOSE_CHARS.toLocaleString()}.`);
+    composeFileInput.value = "";
+    return;
+  }
+  attachedCompose = { name: file.name, text };
+  composeFileInput.value = "";
+  updateComposer();
+  inputEl.focus();
+}
+
+function removeAttachment() {
+  attachedCompose = null;
+  composeFileInput.value = "";
+  updateComposer();
+  inputEl.focus();
+}
+
 // The server restates the numbered questions before this text, so numbering the replies
 // the same way lets the model line them up.
 function composeMessage() {
@@ -104,18 +136,25 @@ function kbdHint(action) {
 function updateComposer() {
   $("accepted-bar").hidden = !state.accepted;
   $("composer-main").hidden = state.accepted;
+  composeUploadBtn.hidden = !!state.sessionId;
+  composeUploadBtn.disabled = state.turnRunning;
+  composeChip.hidden = !hasAttachment();
+  if (hasAttachment()) composeChipName.textContent = attachedCompose.name;
   if (state.accepted) {
     $("accepted-text").textContent = `Draft ${state.draftCount} is accepted.`;
     return;
   }
   const message = composeMessage();
+  const attached = hasAttachment();
   inputEl.disabled = state.turnRunning;
-  sendBtn.disabled = state.turnRunning || !message;
+  sendBtn.disabled = state.turnRunning || (!message && !attached);
   sendBtn.textContent = state.sessionId ? "Update draft" : "Generate draft";
   acceptBtn.hidden = !state.sessionId || !state.modelSla;
   acceptBtn.disabled = state.turnRunning;
   if (!state.sessionId) {
-    inputEl.placeholder = "e.g. A Node.js API on port 3000 with 2 CPUs and 1 GB of memory, talking to a Redis cache";
+    inputEl.placeholder = attached
+      ? "Anything to add? e.g. pin the api to cluster edge1 (optional)"
+      : "e.g. A Node.js API on port 3000 with 2 CPUs and 1 GB of memory, talking to a Redis cache";
   } else if (activeForm) {
     inputEl.placeholder = "Anything else to change? (optional)";
   } else {
@@ -127,7 +166,7 @@ function updateComposer() {
     hintEl.textContent = state.modelSla
       ? "Answer a question or describe a change. Happy with the assumptions? Accept the draft."
       : "Answer at least one question so the model can draft an SLA.";
-  } else if (message) {
+  } else if (message || attached) {
     hintEl.appendChild(kbdHint(state.sessionId ? "update" : "generate"));
   }
 }
@@ -147,25 +186,31 @@ function closeForm(keepAll) {
 
 async function send() {
   const message = composeMessage();
-  if (!message || state.turnRunning) return;
+  const attached = hasAttachment();
+  if ((!message && !attached) || state.turnRunning) return;
   const extra = inputEl.value.trim();
   const first = !state.sessionId;
+  const compose = attached ? attachedCompose : null;
   if (activeForm) {
     closeForm(false);
     if (extra) addYou(extra);
+  } else if (compose) {
+    addYou(`Uploaded ${compose.name}` + (extra ? `\n\n${extra}` : ""));
   } else {
     addYou(message);
   }
   inputEl.value = "";
+  // handleResponse puts it back if the first request fails.
+  if (compose) { attachedCompose = null; composeFileInput.value = ""; }
   startTurn(first);
 
   const token = ++requestToken;
   const res = first
-    ? await startSession(collectSettings(), message)
+    ? await startSession(collectSettings(), message, compose ? compose.text : undefined)
     : await answerSession(state.sessionId, message);
   if (token !== requestToken) return;
   endTurn();
-  handleResponse(res, first, message);
+  handleResponse(res, first, message, compose);
   updateComposer();
   renderOutput();
 }
@@ -175,7 +220,7 @@ function adoptSession(id) {
   lockSettings(true);
 }
 
-function handleResponse(res, first, message) {
+function handleResponse(res, first, message, compose) {
   const body = res.body || {};
   if (res.status === 200) {
     adoptSession(body.session_id);
@@ -187,8 +232,11 @@ function handleResponse(res, first, message) {
     renderFailedRound(body);
     return;
   }
-  // Nothing was saved for a failed first message, so hand it back for a retry.
-  if (first && !state.sessionId) inputEl.value = message;
+  // Nothing was saved for a failed first message, so hand both back for a retry.
+  if (first && !state.sessionId) {
+    inputEl.value = message;
+    if (compose) attachedCompose = compose;
+  }
   if (res.status === 422) {
     const msgs = (Array.isArray(body.detail) ? body.detail : []).map((d) => d.msg || JSON.stringify(d));
     notice("The server rejected the request", msgs.join("; ") || "Check the settings and try again.");
@@ -306,6 +354,8 @@ function newSession(skipConfirm) {
     sessionId: null, draftCount: 0, modelSla: null, previousModelSla: null, accepted: false,
   });
   activeForm = null;
+  attachedCompose = null;
+  composeFileInput.value = "";
   for (const child of [...threadEl.children]) if (child !== introEl) child.remove();
   introEl.hidden = false;
   inputEl.value = "";
@@ -333,8 +383,35 @@ export function initConversation() {
 
   inputEl.addEventListener("keydown", onSendShortcut);
   inputEl.addEventListener("input", updateComposer);
-  $("composer").addEventListener("submit", (e) => { e.preventDefault(); send(); });
+  composerEl.addEventListener("submit", (e) => { e.preventDefault(); send(); });
   acceptBtn.addEventListener("click", accept);
+
+  composeUploadBtn.addEventListener("click", () => composeFileInput.click());
+  composeFileInput.addEventListener("change", () => {
+    const file = composeFileInput.files[0];
+    if (file) attachFile(file);
+  });
+  composeChipRemove.addEventListener("click", removeAttachment);
+
+  const draggingFile = (e) => Array.from(e.dataTransfer?.types || []).includes("Files");
+  composerEl.addEventListener("dragover", (e) => {
+    if (!draggingFile(e)) return;
+    e.preventDefault(); // otherwise the browser navigates to the dropped file
+    if (!state.sessionId && !state.turnRunning) composerEl.classList.add("drag-over");
+  });
+  // dragleave also fires when the pointer moves onto a child, so only clear the highlight
+  // once it has actually left the composer.
+  composerEl.addEventListener("dragleave", (e) => {
+    if (!composerEl.contains(e.relatedTarget)) composerEl.classList.remove("drag-over");
+  });
+  composerEl.addEventListener("drop", (e) => {
+    if (!draggingFile(e)) return;
+    e.preventDefault();
+    composerEl.classList.remove("drag-over");
+    if (state.sessionId || state.turnRunning) return;
+    const file = e.dataTransfer.files[0];
+    if (file) attachFile(file);
+  });
   $("keep-refining").addEventListener("click", () => {
     state.accepted = false;
     updateComposer();

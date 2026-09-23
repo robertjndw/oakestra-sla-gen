@@ -331,6 +331,41 @@ details.attempts summary { cursor: pointer; width: fit-content; }
 #composer-input:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
 .composer-foot { margin-top: 8px; display: flex; align-items: center; gap: 8px; }
 .composer-hint { flex: 1; min-width: 0; color: var(--ink-2); font-size: 12.5px; }
+.compose-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  margin-bottom: 8px;
+  padding: 4px 4px 4px 10px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 12.5px;
+}
+.compose-chip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.compose-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+.compose-chip-remove:hover { background: var(--sunken); }
+/* The whole composer takes the drop, not just the textarea. */
+.composer.drag-over #composer-main {
+  outline: 2px dashed var(--accent);
+  outline-offset: 4px;
+  border-radius: 8px;
+}
 kbd {
   font-family: var(--sans);
   font-size: 11.5px;

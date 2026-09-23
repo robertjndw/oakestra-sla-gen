@@ -6,6 +6,14 @@ from oakestra_sla_gen import cli
 from oakestra_sla_gen.generator import Draft
 from oakestra_sla_gen.models import Clarification
 
+_COMPOSE_YAML = """\
+services:
+  web:
+    image: nginx:1.25
+    ports:
+      - "8080:80"
+"""
+
 _NGINX_SLA = {
     "sla_version": "v2.0",
     "customerID": "Admin",
@@ -98,6 +106,62 @@ def test_no_interactive_success_without_questions_has_no_assumptions_output(monk
     out, err = capsys.readouterr()
     assert "Assumptions made:" not in err
     assert '"microservice_name": "nginx"' in out
+
+
+# -- --compose ------------------------------------------------------------------
+
+
+def test_compose_flag_sends_yaml_and_notes(monkeypatch, tmp_path, capsys):
+    compose_file = tmp_path / "compose.yaml"
+    compose_file.write_text(_COMPOSE_YAML)
+    fake = _patch_session(monkeypatch, [Draft(sla=_NGINX_SLA, questions=[])])
+
+    code = cli._generate_command(
+        ["pin web to edge1", "--compose", str(compose_file), "--no-interactive"]
+    )
+
+    assert code == 0
+    [(_, sent)] = fake.calls
+    assert _COMPOSE_YAML in sent
+    assert "Additional instructions from the user:" in sent
+    assert "pin web to edge1" in sent
+    assert '"microservice_name": "nginx"' in capsys.readouterr().out
+
+
+def test_compose_flag_without_notes_does_not_error(monkeypatch, tmp_path):
+    # No positional text, -f, or piped stdin: notes fall back to "" instead of erroring.
+    monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+    compose_file = tmp_path / "compose.yaml"
+    compose_file.write_text(_COMPOSE_YAML)
+    fake = _patch_session(monkeypatch, [Draft(sla=_NGINX_SLA, questions=[])])
+
+    code = cli._generate_command(["--compose", str(compose_file), "--no-interactive"])
+
+    assert code == 0
+    [(_, sent)] = fake.calls
+    assert "Additional instructions" not in sent
+
+
+def test_compose_flag_with_missing_file_exits_2(monkeypatch, capsys):
+    monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+    _patch_session(monkeypatch, [])
+
+    code = cli._generate_command(["--compose", "/no/such/file.yaml", "--no-interactive"])
+
+    assert code == 2
+    assert "error:" in capsys.readouterr().err
+
+
+def test_compose_flag_with_invalid_compose_exits_2(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+    compose_file = tmp_path / "compose.yaml"
+    compose_file.write_text("services: {}\n")
+    _patch_session(monkeypatch, [])
+
+    code = cli._generate_command(["--compose", str(compose_file), "--no-interactive"])
+
+    assert code == 2
+    assert "error:" in capsys.readouterr().err
 
 
 # -- interactive loop ----------------------------------------------------------

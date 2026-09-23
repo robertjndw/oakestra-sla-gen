@@ -6,6 +6,7 @@ import os
 import pathlib
 import sys
 
+from .compose import ComposeError, compose_message
 from .generator import (
     DEFAULT_MODEL,
     DEFAULT_REASONING_EFFORT,
@@ -106,6 +107,12 @@ def _generate_command(argv: list[str]) -> int:
     )
     parser.add_argument("text", nargs="?", help="Free-text description of the application(s).")
     parser.add_argument("-f", "--file", help="Read the description from a file.")
+    parser.add_argument(
+        "-c",
+        "--compose",
+        help="Read a docker compose file and translate it into an SLA. "
+        "The positional text, -f, or stdin then become optional notes alongside it.",
+    )
     parser.add_argument("-o", "--output", help="Write the verified SLA here instead of stdout.")
     _add_llm_arguments(parser)
     parser.add_argument(
@@ -128,7 +135,23 @@ def _generate_command(argv: list[str]) -> int:
     )
     args = parser.parse_args(argv)
 
-    if args.file:
+    if args.compose:
+        # Notes are optional next to a compose file, so having none isn't a usage error.
+        if args.file:
+            notes = pathlib.Path(args.file).read_text()
+        elif args.text:
+            notes = args.text
+        elif not sys.stdin.isatty():
+            notes = sys.stdin.read()
+        else:
+            notes = ""
+        try:
+            compose_text = pathlib.Path(args.compose).read_text()
+            description = compose_message(compose_text, notes)
+        except (ComposeError, OSError) as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 2
+    elif args.file:
         description = pathlib.Path(args.file).read_text()
     elif args.text:
         description = args.text

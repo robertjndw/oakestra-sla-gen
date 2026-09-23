@@ -3,10 +3,18 @@
 import httpx
 import openai
 from fastapi.testclient import TestClient
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from test_generator import FakeStructuredLLM, _request
 
 from oakestra_sla_gen.server import create_app
+
+_COMPOSE_YAML = """\
+services:
+  web:
+    image: nginx:1.25
+    ports:
+      - "8080:80"
+"""
 
 
 def _client(responses, seen_methods=None):
@@ -65,6 +73,35 @@ def test_generate_rejects_bad_requests_before_calling_the_llm():
     assert client.post("/generate", json={"description": ""}).status_code == 422
     assert client.post("/generate", json={"description": "x", "method": "nope"}).status_code == 422
     assert client.post("/generate", json={"description": "x", "max_retries": 0}).status_code == 422
+    assert fake.calls == []
+
+
+def test_generate_with_only_compose_sends_the_yaml_to_the_llm():
+    client, fake = _client([_ok(_request("web"))])
+
+    response = client.post("/generate", json={"compose": _COMPOSE_YAML})
+
+    assert response.status_code == 200
+    last_human = [m for m in fake.calls[0] if isinstance(m, HumanMessage)][-1].content
+    assert _COMPOSE_YAML in last_human
+
+
+def test_generate_rejects_neither_description_nor_compose():
+    client, fake = _client([])
+
+    response = client.post("/generate", json={})
+
+    assert response.status_code == 422
+    assert fake.calls == []
+
+
+def test_generate_rejects_invalid_compose():
+    client, fake = _client([])
+
+    response = client.post("/generate", json={"compose": "services: {}\n"})
+
+    assert response.status_code == 422
+    assert "no services" in response.text
     assert fake.calls == []
 
 
