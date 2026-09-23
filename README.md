@@ -165,6 +165,42 @@ The LLM isn't part of the container. By default it talks to LM Studio on the Doc
 LM Studio has to listen on all interfaces rather than only `127.0.0.1`, or the container can't
 reach it. Docker Desktop on macOS and Windows forwards to the host's loopback, so it works as is.
 
+## Oakestra addon
+
+The server can run as an [Oakestra addon](https://github.com/oakestra/oakestra/tree/develop/addons_engine):
+the root orchestrator's addons engine then runs the container next to the control plane,
+on the `oakestra` Docker network. `oakestra-addon.json` is the marketplace entry for it.
+
+The image is published to `ghcr.io/robertjndw/oakestra-sla-gen` (amd64 and arm64) by
+`.github/workflows/image.yml`: `latest` from `main`, plus a version tag for each `v*` git tag.
+The marketplace pulls the image to approve an addon, so the package has to be public (or the
+root orchestrator host has to be logged in to GHCR).
+
+Before registering, check `environment` in `oakestra-addon.json`. The addons engine starts the
+container with plain `docker run` options and can't add `extra_hosts`, so
+`host.docker.internal` doesn't resolve there. The default, `172.17.0.1`, is the Docker bridge
+gateway on a Linux host, which reaches an LLM server on the root orchestrator host as long as
+it listens on all interfaces. For an LLM elsewhere, use its real address. Marketplace entries
+are stored and shown in plain text, so don't put a real API key in there on a shared setup.
+
+Then register and install it (ports as in a default root orchestrator):
+
+```
+# register with the marketplace, it moves from under_review to approved once the image pulled
+curl -X POST http://<root-orchestrator>:11102/api/v1/marketplace/addons \
+  -H 'content-type: application/json' -d @oakestra-addon.json
+
+# install it, using the _id from the response above
+curl -X POST http://<root-orchestrator>:11101/api/v1/addons \
+  -H 'content-type: application/json' -d '{"marketplace_id": "<_id>"}'
+```
+
+The same works from the addons dashboard on port 11103. The addons monitor polls every 30
+seconds by default, after which the playground is at
+`http://<root-orchestrator>:8000/playground`. In `ports`, the key is the container port and the
+value is the host port (the Docker SDK's convention, the dashboard's form labels them the other
+way round), so change the value to move it off 8000.
+
 ## How it works
 
 1. A Pydantic model (`models.py`) constrains what the LLM can produce. It only covers a
