@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SLA Playground</title>
+<link rel="stylesheet" href="/playground/static/playground.css">
+<script type="module" src="/playground/static/js/main.js"></script>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
+      <circle cx="5" cy="11" r="3" fill="currentColor"/>
+      <circle cx="17" cy="5" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/>
+      <circle cx="17" cy="17" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/>
+      <path d="M8 10 L14 6.5 M8 12 L14 15.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+    </svg>
+    <span class="brand-name">SLA Playground</span>
+    <span class="brand-sub">for Oakestra</span>
+  </div>
+  <div class="topbar-tools">
+    <span id="model-pill" class="model-pill" title="Model the server generates with" hidden>
+      <span class="model-dot"></span><span id="model-name"></span>
+    </span>
+    <div class="settings-wrap">
+      <button id="settings-btn" class="btn btn-quiet" type="button" aria-expanded="false" aria-controls="settings-panel">
+        Settings <span id="settings-summary" class="settings-summary"></span>
+      </button>
+      <div id="settings-panel" class="settings-panel" hidden>
+        <label class="field">
+          Output method
+          <select id="method">
+            <option value="prompt">prompt</option>
+            <option value="json_schema">json_schema</option>
+            <option value="function_calling">function_calling</option>
+          </select>
+        </label>
+        <label class="field">
+          Attempts per round
+          <input id="max-retries" type="number" min="1" max="10" step="1" value="3">
+        </label>
+        <label class="field">
+          Customer ID
+          <input id="customer-id" type="text" value="Admin">
+        </label>
+        <label class="field-check">
+          <input id="check-images" type="checkbox" checked>
+          Check that images exist
+        </label>
+        <p class="field-help">Each round retries until the SLA passes validation or runs out of attempts.</p>
+        <p id="settings-note" class="settings-note" hidden>These are fixed for the current session. Start a new session to change them.</p>
+      </div>
+    </div>
+    <button id="new-btn" class="btn" type="button">New session</button>
+  </div>
+</header>
+
+<main class="workspace">
+  <section class="pane pane-left" aria-label="Conversation">
+    <div id="thread" class="thread" aria-live="polite">
+      <div id="intro" class="intro">
+        <h1>Describe what you want to deploy</h1>
+        <p>Write it the way you'd explain it to a colleague: images, ports, resources, and which services talk to each other. The model drafts an SLA, checks it against Oakestra's schema, and asks about anything it had to guess.</p>
+        <p class="examples-label">Or start from an example</p>
+        <ul id="examples" class="examples"></ul>
+      </div>
+    </div>
+
+    <form id="composer" class="composer" autocomplete="off">
+      <div id="accepted-bar" class="accepted-bar" hidden>
+        <p><strong id="accepted-text"></strong> Download it or copy the JSON.</p>
+        <button id="accepted-download" class="btn btn-primary" type="button">Download sla.json</button>
+        <button id="accepted-copy" class="btn" type="button">Copy JSON</button>
+        <button id="keep-refining" class="btn btn-quiet" type="button">Keep refining</button>
+      </div>
+      <div id="composer-main">
+        <label for="composer-input" class="examples-label" id="composer-label" hidden></label>
+        <textarea id="composer-input" rows="3" placeholder="e.g. A Node.js API on port 3000 with 2 CPUs and 1 GB of memory, talking to a Redis cache"></textarea>
+        <div class="composer-foot">
+          <span id="composer-hint" class="composer-hint"></span>
+          <button id="accept-btn" class="btn" type="button" hidden>Accept draft</button>
+          <button id="send-btn" class="btn btn-primary" type="submit">Generate draft</button>
+        </div>
+      </div>
+    </form>
+  </section>
+
+  <section class="pane pane-right" aria-label="SLA">
+    <div class="out-head">
+      <div class="out-title">
+        <h2 id="draft-title">No draft yet</h2>
+        <span id="badge" class="badge" hidden></span>
+      </div>
+      <div class="out-tools">
+        <div class="seg" role="group" aria-label="View">
+          <button id="mode-visual-btn" type="button" aria-pressed="true">Visual</button>
+          <button id="mode-code-btn" type="button" aria-pressed="false">Code</button>
+        </div>
+        <button id="copy-btn" class="btn btn-quiet" type="button" disabled>Copy</button>
+        <button id="download-btn" class="btn btn-quiet" type="button" disabled>Download</button>
+      </div>
+    </div>
+    <div id="progress" class="progress" hidden></div>
+
+    <div id="out-body" class="out-body">
+      <div id="out-empty" class="out-empty">
+        <svg width="120" height="64" viewBox="0 0 120 64" aria-hidden="true">
+          <rect x="2" y="22" width="30" height="20" rx="5" fill="none" stroke="currentColor" stroke-width="2"/>
+          <rect x="72" y="4" width="46" height="22" rx="5" fill="none" stroke="currentColor" stroke-width="2"/>
+          <rect x="72" y="38" width="46" height="22" rx="5" fill="none" stroke="currentColor" stroke-width="2"/>
+          <path d="M32 30 C 52 30, 52 15, 72 15 M32 34 C 52 34, 52 49, 72 49" fill="none" stroke="currentColor" stroke-width="2"/>
+        </svg>
+        <h3 id="out-empty-title">Your SLA shows up here</h3>
+        <p id="out-empty-text">Visual shows the services and how they connect. Code is the SLA JSON, which you can edit, validate and download.</p>
+      </div>
+
+      <div id="visual-view" hidden>
+        <p id="stale-note" class="stale-note" hidden>The JSON in Code has a syntax error, so this shows the last version that parsed.</p>
+        <p id="summary" class="summary"></p>
+        <p id="summary-desc" class="summary-desc" hidden></p>
+        <ul id="global-errors" class="global-errors" hidden></ul>
+        <div id="map" class="map"></div>
+        <p id="map-caption" class="map-caption"></p>
+        <div id="services" class="services"></div>
+      </div>
+
+      <div id="code-view" hidden>
+        <div class="editor">
+          <pre id="gutter" class="gutter" aria-hidden="true"></pre>
+          <div class="editor-stack">
+            <pre id="highlight" class="highlight" aria-hidden="true"></pre>
+            <textarea id="editor" wrap="off" spellcheck="false" autocapitalize="off" aria-label="SLA JSON" placeholder="The SLA JSON appears here once the model has drafted one."></textarea>
+          </div>
+        </div>
+        <div class="code-foot">
+          <p id="code-status"></p>
+          <button id="reset-btn" class="btn" type="button" hidden>Reset to model draft</button>
+        </div>
+        <ul id="problems" class="problems"></ul>
+      </div>
+    </div>
+  </section>
+</main>
+</body>
+</html>

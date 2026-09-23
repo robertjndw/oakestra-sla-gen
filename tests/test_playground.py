@@ -1,5 +1,8 @@
 """Playground HTTP API tests with a fake structured-output runnable, no network involved."""
 
+import posixpath
+import re
+
 from fastapi.testclient import TestClient
 from langchain_core.messages import HumanMessage
 from test_generator import FakeStructuredLLM, _request
@@ -21,6 +24,31 @@ def test_playground_page_served_when_enabled():
 
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
+
+
+def test_playground_assets_and_module_imports_resolve():
+    # There's no bundler, so a typo in a <link>, <script> or import path only shows up as a
+    # blank page in the browser. Follow every reference from the page to catch that here.
+    client, _ = _client([])
+    page = client.get("/playground").text
+    pending = re.findall(r'(?:href|src)="(/playground/static/[^"]+)"', page)
+    assert any(url.endswith(".css") for url in pending)
+    assert any(url.endswith(".js") for url in pending)
+
+    seen = set()
+    while pending:
+        url = pending.pop()
+        if url in seen:
+            continue
+        seen.add(url)
+        response = client.get(url)
+        assert response.status_code == 200, url
+        if url.endswith(".js"):
+            assert "javascript" in response.headers["content-type"], url
+            for spec in re.findall(r'^import .*?from "(\.[^"]+)";', response.text, re.M | re.S):
+                pending.append(posixpath.normpath(posixpath.join(posixpath.dirname(url), spec)))
+
+    assert len([url for url in seen if url.endswith(".js")]) > 1
 
 
 def test_playground_info_reports_the_model():

@@ -15,6 +15,7 @@ from typing import Any
 import openai
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .generator import Draft, SLAGenerationError, SLASession
@@ -118,11 +119,19 @@ def add_playground(
             entry.session.on_attempt = None
             entry.lock.release()
 
+    # Resolved through the package rather than a filesystem path, so it works the same from
+    # a source checkout and an installed wheel.
+    app.mount(
+        "/playground/static",
+        StaticFiles(packages=[(__package__, "static/playground")]),
+        name="playground-static",
+    )
+
     # Same reason as the comment in server.py: plain `def`, not `async def`, so FastAPI
     # runs these in its thread pool instead of blocking the event loop on the LLM call.
     @app.get("/playground", response_class=HTMLResponse)
     def playground_page() -> HTMLResponse:
-        html = importlib.resources.files(__package__) / "static/playground.html"
+        html = importlib.resources.files(__package__) / "static/playground/index.html"
         return HTMLResponse(html.read_text())
 
     # The page shows which model it's talking to, since comparing models is most of what the
