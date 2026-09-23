@@ -150,6 +150,21 @@ This adds a few endpoints behind `/playground`, all backed by an in-memory sessi
 Sessions live only in this process's memory - they don't survive a restart and aren't shared
 across worker processes - and are capped in count and by idle time, oldest evicted first.
 
+## Docker
+
+`compose.yaml` builds the image and starts the HTTP server with the playground enabled:
+
+```
+docker compose up --build              # http://localhost:8000/playground
+PORT=9000 docker compose up --build    # if 8000 is taken on the host
+```
+
+The LLM isn't part of the container. By default it talks to LM Studio on the Docker host at
+`http://host.docker.internal:1234/v1`. Set `OPENAI_BASE_URL`, `OPENAI_API_KEY` and
+`OAKESTRA_SLA_MODEL` in the environment (or a `.env` file) to point it somewhere else. On Linux,
+LM Studio has to listen on all interfaces rather than only `127.0.0.1`, or the container can't
+reach it. Docker Desktop on macOS and Windows forwards to the host's loopback, so it works as is.
+
 ## How it works
 
 1. A Pydantic model (`models.py`) constrains what the LLM can produce. It only covers a
