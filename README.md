@@ -96,8 +96,9 @@ uv run oakestra-sla-gen serve          # http://127.0.0.1:8000, docs at /docs
 uv run oakestra-sla-gen serve --host 0.0.0.0 --port 9000 --model openai/gpt-oss-20b
 ```
 
-`serve` takes the same `--base-url` / `--model` / `--api-key` flags (and env vars) as
-generation. They're fixed when the server starts. Everything else is set per request:
+`serve` takes the same `--base-url` / `--model` / `--api-key` / `--reasoning-effort` flags
+(and env vars) as generation. They're fixed when the server starts. Everything else is set
+per request:
 
 - `POST /generate` with `{"description": "...", "method": "prompt", "customer_id": "Admin",
   "max_retries": 3}` (only `description` is required). Returns the verified SLA with `200`,

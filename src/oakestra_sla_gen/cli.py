@@ -25,6 +25,11 @@ def _add_llm_arguments(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument("--model", default=os.environ.get("OAKESTRA_SLA_MODEL", DEFAULT_MODEL))
     parser.add_argument("--api-key", default=os.environ.get("OPENAI_API_KEY", "lm-studio"))
+    parser.add_argument(
+        "--reasoning-effort",
+        choices=["low", "medium", "high"],
+        default=DEFAULT_REASONING_EFFORT,
+    )
 
 
 def _format_microservice_line(microservice: dict) -> str:
@@ -112,11 +117,6 @@ def _generate_command(argv: list[str]) -> int:
         "--no-image-check",
         action="store_true",
         help="Don't check that referenced images exist in their registry.",
-    )
-    parser.add_argument(
-        "--reasoning-effort",
-        choices=["low", "medium", "high"],
-        default=DEFAULT_REASONING_EFFORT,
     )
     parser.add_argument(
         "--no-interactive",
