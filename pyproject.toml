@@ -1,0 +1,52 @@
+[project]
+name = "oakestra-sla-gen"
+version = "0.1.0"
+description = "Generate a verified Oakestra SLA from a free-text description"
+readme = "README.md"
+authors = [
+    { name = "Robert Jandow", email = "robert@jandow.de" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "jsonschema>=4.26.0",
+    "langchain-core>=1.6.4",
+    "langchain-openai>=1.6.4",
+    "pydantic>=2.13.5",
+]
+
+[project.scripts]
+oakestra-sla-gen = "oakestra_sla_gen.cli:main"
+
+[project.optional-dependencies]
+server = [
+    "fastapi>=0.141.1",
+    "uvicorn[standard]>=0.53.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.18,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "oakestra-sla-gen[server]",
+    "pytest>=9.1.1",
+    "ruff>=0.16.8",
+]
+
+[tool.pytest.ini_options]
+addopts = "-m 'not llm'"
+markers = [
+    "llm: integration tests that call a real LLM server (skipped if unreachable)",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.uv.sources]
+oakestra-sla-gen = { workspace = true }
