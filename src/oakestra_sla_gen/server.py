@@ -6,18 +6,34 @@ from typing import Any, Literal
 import openai
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
+from .compose import MAX_COMPOSE_CHARS, compose_message, load_compose
 from .generator import NeedsClarification, SLAGenerationError, generate_sla
 from .validation import validate_sla
 
 
 class GenerateRequest(BaseModel):
-    description: str = Field(min_length=1)
+    description: str = ""
+    compose: str | None = Field(default=None, max_length=MAX_COMPOSE_CHARS)
     method: Literal["prompt", "json_schema", "function_calling"] = "prompt"
     customer_id: str = "Admin"
     # Capped so a single request can't keep a worker busy with an LLM for minutes.
     max_retries: int = Field(default=3, ge=1, le=10)
+
+    @model_validator(mode="after")
+    def _require_description_or_compose(self) -> "GenerateRequest":
+        if not self.description.strip() and not self.compose:
+            raise ValueError("description or compose is required")
+        if self.compose is not None:
+            # ComposeError is a ValueError, so pydantic reports it as a regular 422.
+            load_compose(self.compose)
+        return self
+
+    def message(self) -> str:
+        if self.compose is not None:
+            return compose_message(self.compose, self.description)
+        return self.description
 
 
 class GenerationFailure(BaseModel):
@@ -65,7 +81,7 @@ def create_app(
     def generate(request: GenerateRequest) -> dict[str, Any]:
         try:
             return generate_sla(
-                request.description,
+                request.message(),
                 structured_llm=structured_llm_factory(request.method),
                 customer_id=request.customer_id,
                 max_retries=request.max_retries,

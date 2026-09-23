@@ -157,7 +157,7 @@ def add_playground(
         )
         entry = _Entry(session=session, lock=threading.Lock(), last_used=time.monotonic())
         insert(session_id, entry)
-        return run_turn(session_id, entry, lambda: session.start(request.description))
+        return run_turn(session_id, entry, lambda: session.start(request.message()))
 
     @app.post("/playground/sessions/{session_id}/answer")
     def answer_session(session_id: str, request: AnswerRequest) -> Any:

@@ -62,7 +62,7 @@
     <div id="thread" class="thread" aria-live="polite">
       <div id="intro" class="intro">
         <h1>Describe what you want to deploy</h1>
-        <p>Write it the way you'd explain it to a colleague: images, ports, resources, and which services talk to each other. The model drafts an SLA, checks it against Oakestra's schema, and asks about anything it had to guess.</p>
+        <p>Write it the way you'd explain it to a colleague: images, ports, resources, and which services talk to each other. The model drafts an SLA, checks it against Oakestra's schema, and asks about anything it had to guess. You can also upload a docker compose file instead, or drop one onto the composer.</p>
         <p class="examples-label">Or start from an example</p>
         <ul id="examples" class="examples"></ul>
       </div>
@@ -77,8 +77,14 @@
       </div>
       <div id="composer-main">
         <label for="composer-input" class="examples-label" id="composer-label" hidden></label>
+        <div id="compose-chip" class="compose-chip" hidden>
+          <span id="compose-chip-name" class="compose-chip-name"></span>
+          <button id="compose-chip-remove" class="compose-chip-remove" type="button" aria-label="Remove attached compose file">&times;</button>
+        </div>
         <textarea id="composer-input" rows="3" placeholder="e.g. A Node.js API on port 3000 with 2 CPUs and 1 GB of memory, talking to a Redis cache"></textarea>
+        <input type="file" id="compose-file" accept=".yml,.yaml,application/x-yaml,text/yaml" hidden>
         <div class="composer-foot">
+          <button id="compose-upload-btn" class="btn btn-quiet" type="button">Upload docker compose</button>
           <span id="composer-hint" class="composer-hint"></span>
           <button id="accept-btn" class="btn" type="button" hidden>Accept draft</button>
           <button id="send-btn" class="btn btn-primary" type="submit">Generate draft</button>

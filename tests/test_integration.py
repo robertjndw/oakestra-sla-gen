@@ -10,10 +10,23 @@ import urllib.request
 import pytest
 
 from oakestra_sla_gen.cli import DEFAULT_MODEL, DEFAULT_REASONING_EFFORT
+from oakestra_sla_gen.compose import compose_message
 from oakestra_sla_gen.generator import NeedsClarification, SLASession, build_llm, generate_sla
 from oakestra_sla_gen.validation import validate_sla
 
 BASE_URL = "http://127.0.0.1:1234/v1"
+
+_WEB_REDIS_COMPOSE = """\
+services:
+  web:
+    image: nginx:1.25
+    ports:
+      - "8080:80"
+    environment:
+      - REDIS_HOST=redis
+  redis:
+    image: redis:7
+"""
 
 pytestmark = pytest.mark.llm
 
@@ -90,6 +103,15 @@ def test_two_turn_session_refines_the_draft():
     [postgres] = _microservices(draft.sla)
     assert "postgres:16" in postgres["code"]
     assert any("pw1" in e for e in postgres["environment"])
+
+
+def test_compose_upload_rewrites_the_service_reference_to_the_rr_ip():
+    sla = _generate(compose_message(_WEB_REDIS_COMPOSE))
+    services = {m["microservice_name"]: m for m in _microservices(sla)}
+    assert "redis" in services
+    redis_ip = services["redis"]["addresses"]["rr_ip"]
+    web_env = services["web"]["environment"]
+    assert any(e == f"REDIS_HOST={redis_ip}" for e in web_env)
 
 
 def _llm():
