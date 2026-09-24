@@ -4,11 +4,11 @@ from collections.abc import Callable
 from typing import Any, Literal
 
 import openai
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, PrivateAttr, model_validator
 
-from .compose import MAX_COMPOSE_CHARS, compose_message, load_compose
+from .compose import MAX_COMPOSE_CHARS, compose_message
 from .generator import NeedsClarification, SLAGenerationError, generate_sla
 from .validation import validate_sla
 
@@ -20,20 +20,22 @@ class GenerateRequest(BaseModel):
     customer_id: str = "Admin"
     # Capped so a single request can't keep a worker busy with an LLM for minutes.
     max_retries: int = Field(default=3, ge=1, le=10)
+    _message: str = PrivateAttr()
 
     @model_validator(mode="after")
     def _require_description_or_compose(self) -> "GenerateRequest":
         if not self.description.strip() and not self.compose:
             raise ValueError("description or compose is required")
+        # Built here so the compose YAML is parsed once, and a ComposeError (a ValueError)
+        # is reported by pydantic as a regular 422.
         if self.compose is not None:
-            # ComposeError is a ValueError, so pydantic reports it as a regular 422.
-            load_compose(self.compose)
+            self._message = compose_message(self.compose, self.description)
+        else:
+            self._message = self.description
         return self
 
     def message(self) -> str:
-        if self.compose is not None:
-            return compose_message(self.compose, self.description)
-        return self.description
+        return self._message
 
 
 class GenerationFailure(BaseModel):
@@ -69,6 +71,10 @@ def create_app(
         description="Generate a verified Oakestra SLA from a free-text description.",
     )
 
+    @app.exception_handler(openai.APIError)
+    def llm_error(_request: Request, error: openai.APIError) -> JSONResponse:
+        return JSONResponse(status_code=502, content={"detail": f"LLM server error: {error}"})
+
     # Don't make these `async def`. generate_sla blocks while waiting on the LLM, and
     # FastAPI only moves plain `def` endpoints off the event loop into a thread pool.
     @app.post(
@@ -99,8 +105,6 @@ def create_app(
                 questions=[q.model_dump() for q in error.questions],
             )
             return JSONResponse(status_code=422, content=failure.model_dump())
-        except openai.APIError as error:
-            return JSONResponse(status_code=502, content={"detail": f"LLM server error: {error}"})
 
     @app.post("/validate")
     def validate(sla: dict[str, Any]) -> ValidateResponse:

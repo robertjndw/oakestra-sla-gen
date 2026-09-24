@@ -1,5 +1,6 @@
 """Generate a verified Oakestra SLA from a free-text description via an LLM."""
 
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from operator import itemgetter
 
@@ -11,7 +12,7 @@ from langchain_openai import ChatOpenAI
 from .models import Clarification, SLARequest
 from .prompts import CORRECTION_TEMPLATE, SYSTEM_PROMPT
 from .registry import image_exists
-from .validation import validate_sla
+from .validation import iter_microservices, validate_sla
 
 # From our evaluation over 18 descriptions: qwen3.8 at low reasoning effort got 18/18 valid
 # SLAs, found real images for 6/8 held-out cases (vs. 4/8 for gpt-oss-20b) and took about
@@ -180,111 +181,56 @@ def _check_images(sla: dict, messages: list[BaseMessage]) -> tuple[list[str], li
     """Look up every microservice's image. A missing image the model picked itself is a
     validation error (retry with a better one); a missing image the user typed is left as-is
     but flagged as a question, since it might just be private."""
+    microservices = list(iter_microservices(sla))
+    codes = {microservice.get("code", "") for microservice in microservices}
+    # An uncached Docker Hub lookup is three round trips, so look the images up concurrently
+    # instead of paying for that once per service.
+    with ThreadPoolExecutor() as pool:
+        exists = dict(zip(codes, pool.map(image_exists, codes), strict=True))
+
     errors: list[str] = []
     questions: list[Clarification] = []
-    for application in sla.get("applications", []):
-        for microservice in application.get("microservices", []):
-            code = microservice.get("code", "")
-            if image_exists(code) is not False:
-                continue
-            if _image_mentioned_by_user(code, messages):
-                questions.append(
-                    Clarification(
-                        topic=f"{microservice.get('microservice_name')} image",
-                        question=(
-                            f"could not find image {code} in its registry - "
-                            "is the name right, or is it private?"
-                        ),
-                        assumption=f"keep {code} as given",
-                    )
+    for microservice in microservices:
+        code = microservice.get("code", "")
+        if exists[code] is not False:
+            continue
+        if _image_mentioned_by_user(code, messages):
+            questions.append(
+                Clarification(
+                    topic=f"{microservice.get('microservice_name')} image",
+                    question=(
+                        f"could not find image {code} in its registry - "
+                        "is the name right, or is it private?"
+                    ),
+                    assumption=f"keep {code} as given",
                 )
-            else:
-                errors.append(
-                    f"image {code} does not exist in its registry; "
-                    "use the correct image name or ask the user"
-                )
+            )
+        else:
+            errors.append(
+                f"image {code} does not exist in its registry; "
+                "use the correct image name or ask the user"
+            )
     return errors, questions
 
 
 def _plausibility_questions(sla: dict) -> list[Clarification]:
     questions = []
-    for application in sla.get("applications", []):
-        for microservice in application.get("microservices", []):
-            name = microservice.get("microservice_name")
-            for resource, limit in _PLAUSIBILITY_LIMITS:
-                value = microservice.get(resource)
-                if isinstance(value, int | float) and value > limit:
-                    questions.append(
-                        Clarification(
-                            topic=f"{name} {resource}",
-                            question=(
-                                f"{value} for {resource} on {name} is unusually high - "
-                                "is that really what you want?"
-                            ),
-                            assumption=f"keeps {value} as requested",
-                        )
+    for microservice in iter_microservices(sla):
+        name = microservice.get("microservice_name")
+        for resource, limit in _PLAUSIBILITY_LIMITS:
+            value = microservice.get(resource)
+            if isinstance(value, int | float) and value > limit:
+                questions.append(
+                    Clarification(
+                        topic=f"{name} {resource}",
+                        question=(
+                            f"{value} for {resource} on {name} is unusually high - "
+                            "is that really what you want?"
+                        ),
+                        assumption=f"keeps {value} as requested",
                     )
+                )
     return questions
-
-
-def _run_retry_loop(
-    structured_llm,
-    messages: list[BaseMessage],
-    customer_id: str,
-    max_retries: int,
-    check_images: bool,
-    on_attempt,
-) -> tuple[Draft, AIMessage | None]:
-    """Run the validate/retry loop for one turn of `messages` (system + history + the latest
-    human message). Returns the resulting draft and the raw AI message that produced it, so the
-    caller can decide what belongs in the persistent conversation."""
-    turn_messages = list(messages)
-    errors: list[str] = []
-    last_candidate: dict | None = None
-    last_questions: list[Clarification] = []
-
-    for attempt in range(1, max_retries + 1):
-        # Transport errors (server down, bad URL, auth) are deliberately not
-        # caught: retrying won't fix them and they shouldn't be reported as a
-        # bad SLA. Bad model output comes back as parsing_error instead.
-        result = structured_llm.invoke(turn_messages)
-        raw = result.get("raw")
-        parsed = result.get("parsed")
-        parsing_error = result.get("parsing_error")
-
-        if parsing_error is not None or parsed is None:
-            errors = [f"the model's response could not be parsed: {parsing_error}"]
-            last_candidate, last_questions = None, []
-        elif not parsed.applications:
-            # Too vague to draft anything - nothing to validate or check images for.
-            errors = []
-            last_candidate, last_questions = None, list(parsed.questions)
-        else:
-            candidate = parsed.to_oakestra_sla(customer_id)
-            errors = validate_sla(candidate)
-            questions = list(parsed.questions)
-            if not errors and check_images:
-                # `messages`, not `turn_messages`: a correction message quoting a missing
-                # image must not make that image look user-provided on the next attempt.
-                image_errors, image_questions = _check_images(candidate, messages)
-                errors = image_errors
-                questions += image_questions
-            if not errors:
-                questions += _plausibility_questions(candidate)
-            last_candidate, last_questions = candidate, questions
-
-        if on_attempt is not None:
-            on_attempt(attempt, errors)
-
-        if not errors:
-            return Draft(sla=last_candidate, questions=last_questions), raw
-
-        if isinstance(raw, AIMessage):
-            turn_messages.append(raw)
-        error_text = "\n".join(f"- {e}" for e in errors)
-        turn_messages.append(HumanMessage(CORRECTION_TEMPLATE.format(errors=error_text)))
-
-    raise SLAGenerationError(errors, last_candidate)
 
 
 class SLASession:
@@ -329,17 +275,62 @@ class SLASession:
 
     def _turn(self, text: str) -> Draft:
         base = [*self.messages, HumanMessage(text)]
-        draft, ai_message = _run_retry_loop(
-            self.structured_llm,
-            base,
-            self.customer_id,
-            self.max_retries,
-            self.check_images,
-            self.on_attempt,
-        )
+        draft, ai_message = self._run_retry_loop(base)
         self.messages = [*base, ai_message] if ai_message is not None else base
         self.draft = draft
         return draft
+
+    def _run_retry_loop(self, messages: list[BaseMessage]) -> tuple[Draft, AIMessage | None]:
+        """Run the validate/retry loop for one turn of `messages` (system + history + the latest
+        human message). Returns the resulting draft and the raw AI message that produced it, so the
+        caller can decide what belongs in the persistent conversation."""
+        turn_messages = list(messages)
+        errors: list[str] = []
+        last_candidate: dict | None = None
+        last_questions: list[Clarification] = []
+
+        for attempt in range(1, self.max_retries + 1):
+            # Transport errors (server down, bad URL, auth) are deliberately not
+            # caught: retrying won't fix them and they shouldn't be reported as a
+            # bad SLA. Bad model output comes back as parsing_error instead.
+            result = self.structured_llm.invoke(turn_messages)
+            raw = result.get("raw")
+            parsed = result.get("parsed")
+            parsing_error = result.get("parsing_error")
+
+            if parsing_error is not None or parsed is None:
+                errors = [f"the model's response could not be parsed: {parsing_error}"]
+                last_candidate, last_questions = None, []
+            elif not parsed.applications:
+                # Too vague to draft anything - nothing to validate or check images for.
+                errors = []
+                last_candidate, last_questions = None, list(parsed.questions)
+            else:
+                candidate = parsed.to_oakestra_sla(self.customer_id)
+                errors = validate_sla(candidate)
+                questions = list(parsed.questions)
+                if not errors and self.check_images:
+                    # `messages`, not `turn_messages`: a correction message quoting a missing
+                    # image must not make that image look user-provided on the next attempt.
+                    image_errors, image_questions = _check_images(candidate, messages)
+                    errors = image_errors
+                    questions += image_questions
+                if not errors:
+                    questions += _plausibility_questions(candidate)
+                last_candidate, last_questions = candidate, questions
+
+            if self.on_attempt is not None:
+                self.on_attempt(attempt, errors)
+
+            if not errors:
+                return Draft(sla=last_candidate, questions=last_questions), raw
+
+            if isinstance(raw, AIMessage):
+                turn_messages.append(raw)
+            error_text = "\n".join(f"- {e}" for e in errors)
+            turn_messages.append(HumanMessage(CORRECTION_TEMPLATE.format(errors=error_text)))
+
+        raise SLAGenerationError(errors, last_candidate)
 
 
 def generate_sla(
@@ -359,13 +350,16 @@ def generate_sla(
     `on_attempt(attempt, errors)` is an optional callback for CLI verbose logging.
     Raises `NeedsClarification` if the description was too vague to draft an SLA at all.
     """
-    if structured_llm is None:
-        structured_llm = build_structured_llm(llm or build_llm(), method=method)
-
-    messages = [SystemMessage(SYSTEM_PROMPT), HumanMessage(description)]
-    draft, _ = _run_retry_loop(
-        structured_llm, messages, customer_id, max_retries, check_images, on_attempt
+    session = SLASession(
+        llm=llm,
+        structured_llm=structured_llm,
+        method=method,
+        customer_id=customer_id,
+        max_retries=max_retries,
+        check_images=check_images,
+        on_attempt=on_attempt,
     )
+    draft = session.start(description)
     if draft.sla is None:
         raise NeedsClarification(draft.questions)
     return draft.sla

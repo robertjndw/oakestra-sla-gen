@@ -1,6 +1,7 @@
 """Retry loop tests using a fake structured-output runnable, no network involved."""
 
 import pytest
+from helpers import FakeStructuredLLM, _ok, _request
 from langchain_core.messages import AIMessage, HumanMessage
 
 from oakestra_sla_gen.generator import (
@@ -13,38 +14,6 @@ from oakestra_sla_gen.generator import (
 from oakestra_sla_gen.models import Clarification, SLARequest
 
 
-def _microservice(name="nginx"):
-    return {
-        "microservice_name": name,
-        "microservice_namespace": "default",
-        "code": "docker.io/library/nginx:latest",
-    }
-
-
-def _request(*names):
-    return SLARequest(
-        applications=[
-            {
-                "application_name": "web",
-                "application_namespace": "default",
-                "microservices": [_microservice(n) for n in names],
-            }
-        ]
-    )
-
-
-class FakeStructuredLLM:
-    """Returns each of `responses` in order and records the messages it was called with."""
-
-    def __init__(self, responses):
-        self.responses = responses
-        self.calls: list[list] = []
-
-    def invoke(self, messages):
-        self.calls.append(list(messages))
-        return self.responses[len(self.calls) - 1]
-
-
 def test_retries_after_validation_error_then_succeeds():
     # Duplicate microservice names are valid Pydantic-wise but rejected by validate_sla,
     # so this exercises the semantic-check layer of the retry loop, not the model layer.
@@ -52,8 +21,8 @@ def test_retries_after_validation_error_then_succeeds():
     valid = _request("nginx")
     fake = FakeStructuredLLM(
         [
-            {"raw": AIMessage(content="first"), "parsed": invalid, "parsing_error": None},
-            {"raw": AIMessage(content="second"), "parsed": valid, "parsing_error": None},
+            _ok(invalid, "first"),
+            _ok(valid, "second"),
         ]
     )
 
@@ -67,9 +36,7 @@ def test_retries_after_validation_error_then_succeeds():
 
 def test_exhausting_retries_raises_with_last_candidate():
     invalid = _request("nginx", "nginx")
-    fake = FakeStructuredLLM(
-        [{"raw": AIMessage(content="x"), "parsed": invalid, "parsing_error": None}] * 2
-    )
+    fake = FakeStructuredLLM([_ok(invalid)] * 2)
 
     with pytest.raises(SLAGenerationError) as exc_info:
         generate_sla("two nginx", structured_llm=fake, max_retries=2)
@@ -92,9 +59,7 @@ def test_parsing_error_retries_and_raises_with_no_candidate():
 
 def test_on_attempt_callback_receives_each_attempt():
     valid = _request("nginx")
-    fake = FakeStructuredLLM(
-        [{"raw": AIMessage(content="x"), "parsed": valid, "parsing_error": None}]
-    )
+    fake = FakeStructuredLLM([_ok(valid)])
     seen = []
 
     generate_sla(
@@ -144,9 +109,7 @@ def test_start_returns_questions_only_draft_when_nothing_can_be_drafted():
     request = _questions_only(
         Clarification(topic="application", question="what should be deployed?")
     )
-    fake = FakeStructuredLLM(
-        [{"raw": AIMessage(content="x"), "parsed": request, "parsing_error": None}]
-    )
+    fake = FakeStructuredLLM([_ok(request)])
 
     draft = SLASession(structured_llm=fake).start("deploy my app")
 
@@ -159,9 +122,7 @@ def test_start_returns_sla_with_questions_when_something_is_uncertain():
     request.questions = [
         Clarification(topic="nginx memory", question="how much memory?", assumption="128MB")
     ]
-    fake = FakeStructuredLLM(
-        [{"raw": AIMessage(content="x"), "parsed": request, "parsing_error": None}]
-    )
+    fake = FakeStructuredLLM([_ok(request)])
 
     draft = SLASession(structured_llm=fake).start("an nginx server")
 
@@ -171,9 +132,7 @@ def test_start_returns_sla_with_questions_when_something_is_uncertain():
 
 def test_generate_sla_raises_needs_clarification_when_no_sla():
     request = _questions_only(Clarification(topic="application", question="what?"))
-    fake = FakeStructuredLLM(
-        [{"raw": AIMessage(content="x"), "parsed": request, "parsing_error": None}]
-    )
+    fake = FakeStructuredLLM([_ok(request)])
 
     with pytest.raises(NeedsClarification) as exc_info:
         generate_sla("deploy my app", structured_llm=fake)
@@ -187,9 +146,9 @@ def test_answer_refines_draft_and_drops_failed_attempts_from_history():
     valid2 = _request("redis")
     fake = FakeStructuredLLM(
         [
-            {"raw": AIMessage(content="bad-attempt"), "parsed": invalid, "parsing_error": None},
-            {"raw": AIMessage(content="good-first"), "parsed": valid1, "parsing_error": None},
-            {"raw": AIMessage(content="good-second"), "parsed": valid2, "parsing_error": None},
+            _ok(invalid, "bad-attempt"),
+            _ok(valid1, "good-first"),
+            _ok(valid2, "good-second"),
         ]
     )
     session = SLASession(structured_llm=fake, max_retries=3)
@@ -228,8 +187,8 @@ def test_guessed_missing_image_triggers_retry(monkeypatch):
     good = _request("nginx")
     fake = FakeStructuredLLM(
         [
-            {"raw": AIMessage(content="x"), "parsed": bad, "parsing_error": None},
-            {"raw": AIMessage(content="y"), "parsed": good, "parsing_error": None},
+            _ok(bad),
+            _ok(good, "y"),
         ]
     )
 
@@ -260,9 +219,7 @@ def test_user_given_missing_image_becomes_question_not_retry(monkeypatch):
             }
         ]
     )
-    fake = FakeStructuredLLM(
-        [{"raw": AIMessage(content="x"), "parsed": request, "parsing_error": None}]
-    )
+    fake = FakeStructuredLLM([_ok(request)])
 
     draft = SLASession(structured_llm=fake, max_retries=1).start(
         "deploy ghcr.io/me/privateapp:1.0 on my own cluster"
@@ -278,9 +235,7 @@ def test_none_from_image_exists_is_ignored(monkeypatch):
 
     monkeypatch.setattr(generator, "image_exists", lambda ref, timeout=5.0: None)
     request = _request("nginx")
-    fake = FakeStructuredLLM(
-        [{"raw": AIMessage(content="x"), "parsed": request, "parsing_error": None}]
-    )
+    fake = FakeStructuredLLM([_ok(request)])
 
     draft = SLASession(structured_llm=fake).start("nginx")
 
@@ -305,9 +260,7 @@ def test_plausibility_question_for_excessive_memory():
             }
         ]
     )
-    fake = FakeStructuredLLM(
-        [{"raw": AIMessage(content="x"), "parsed": request, "parsing_error": None}]
-    )
+    fake = FakeStructuredLLM([_ok(request)])
 
     draft = SLASession(structured_llm=fake).start("a redis cache with 10TB of memory")
 
@@ -347,9 +300,7 @@ def test_repeated_missing_image_is_not_mistaken_for_user_given(monkeypatch):
 
     monkeypatch.setattr(generator, "image_exists", lambda ref, timeout=5.0: "madeup" not in ref)
     bad = _single("app", "docker.io/library/madeup:latest")
-    fake = FakeStructuredLLM(
-        [{"raw": AIMessage(content="x"), "parsed": bad, "parsing_error": None}] * 2
-    )
+    fake = FakeStructuredLLM([_ok(bad)] * 2)
 
     with pytest.raises(SLAGenerationError):
         generate_sla("some app", structured_llm=fake, max_retries=2)
@@ -362,8 +313,8 @@ def test_answer_restates_all_questions_the_user_saw():
     fixed = _single("cache", "docker.io/library/redis:latest", memory=10240)
     fake = FakeStructuredLLM(
         [
-            {"raw": AIMessage(content="x"), "parsed": huge, "parsing_error": None},
-            {"raw": AIMessage(content="y"), "parsed": fixed, "parsing_error": None},
+            _ok(huge),
+            _ok(fixed, "y"),
         ]
     )
     session = SLASession(structured_llm=fake)

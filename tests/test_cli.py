@@ -1,18 +1,11 @@
 """CLI tests with a fake session, no network or real TTY involved."""
 
 import pytest
+from helpers import COMPOSE_YAML
 
 from oakestra_sla_gen import cli
 from oakestra_sla_gen.generator import Draft
 from oakestra_sla_gen.models import Clarification
-
-_COMPOSE_YAML = """\
-services:
-  web:
-    image: nginx:1.25
-    ports:
-      - "8080:80"
-"""
 
 _NGINX_SLA = {
     "sla_version": "v2.0",
@@ -113,7 +106,7 @@ def test_no_interactive_success_without_questions_has_no_assumptions_output(monk
 
 def test_compose_flag_sends_yaml_and_notes(monkeypatch, tmp_path, capsys):
     compose_file = tmp_path / "compose.yaml"
-    compose_file.write_text(_COMPOSE_YAML)
+    compose_file.write_text(COMPOSE_YAML)
     fake = _patch_session(monkeypatch, [Draft(sla=_NGINX_SLA, questions=[])])
 
     code = cli._generate_command(
@@ -122,7 +115,7 @@ def test_compose_flag_sends_yaml_and_notes(monkeypatch, tmp_path, capsys):
 
     assert code == 0
     [(_, sent)] = fake.calls
-    assert _COMPOSE_YAML in sent
+    assert COMPOSE_YAML in sent
     assert "Additional instructions from the user:" in sent
     assert "pin web to edge1" in sent
     assert '"microservice_name": "nginx"' in capsys.readouterr().out
@@ -132,7 +125,7 @@ def test_compose_flag_without_notes_does_not_error(monkeypatch, tmp_path):
     # No positional text, -f, or piped stdin: notes fall back to "" instead of erroring.
     monkeypatch.setattr("sys.stdin.isatty", lambda: True)
     compose_file = tmp_path / "compose.yaml"
-    compose_file.write_text(_COMPOSE_YAML)
+    compose_file.write_text(COMPOSE_YAML)
     fake = _patch_session(monkeypatch, [Draft(sla=_NGINX_SLA, questions=[])])
 
     code = cli._generate_command(["--compose", str(compose_file), "--no-interactive"])

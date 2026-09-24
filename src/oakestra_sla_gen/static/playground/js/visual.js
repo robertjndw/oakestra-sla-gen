@@ -1,7 +1,7 @@
 import { $, el, svg } from "./dom.js";
 import { formatMb, joinWords, plural } from "./format.js";
 import { splitProblem } from "./json-paths.js";
-import { diffSlas, findLinks, ipPattern, parsePorts, portLabel, refsFor, services, shortImage } from "./sla.js";
+import { diffSlas, findLinks, ipPattern, parsePorts, portLabel, services, shortImage, splitEnv } from "./sla.js";
 
 const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
@@ -62,17 +62,17 @@ export function renderVisual({ sla, previous, problems, parseError }) {
       errors: errs.by[s.ai + "/" + s.mi] || [],
     };
   }
-  renderMap(list, marks);
-  renderServices(list, marks, apps.length > 1);
+  const links = findLinks(list);
+  renderMap(list, links, marks);
+  renderServices(list, links, marks, apps.length > 1);
 }
 
-function renderMap(list, marks) {
+function renderMap(list, links, marks) {
   const mapEl = $("map");
   mapEl.replaceChildren();
   if (!list.length) { $("map-caption").textContent = ""; mapEl.hidden = true; return; }
   mapEl.hidden = false;
 
-  const links = findLinks(list);
   const exposed = list.filter((s) => parsePorts(s.ms.port).length);
   const W = 184, H = 58, GAP_X = 104, GAP_Y = 22, PAD = 24, OUT_W = 92;
 
@@ -205,11 +205,12 @@ function focusService(s) {
   target.classList.add("flash");
 }
 
-function renderServices(list, marks, multiApp) {
+function renderServices(list, links, marks, multiApp) {
   const root = $("services");
   root.replaceChildren();
-  const byIp = {};
-  for (const s of list) if (s.ms.addresses?.rr_ip) byIp[s.ms.addresses.rr_ip] = s;
+  const targets = list
+    .filter((s) => s.ms.addresses?.rr_ip)
+    .map((s) => ({ target: s, re: ipPattern(s.ms.addresses.rr_ip) }));
   let lastApp = null;
   for (const s of list) {
     if (multiApp && s.app !== lastApp) {
@@ -261,22 +262,18 @@ function renderServices(list, marks, multiApp) {
     if (ms.addresses?.rr_ip) {
       const ipBox = el("span");
       ipBox.appendChild(el("code", null, ms.addresses.rr_ip));
-      const re = ipPattern(ms.addresses.rr_ip);
-      const users = list
-        .filter((o) => o !== s && refsFor(o.ms).some((r) => re.test(r.value)))
-        .map((o) => o.ms.microservice_name);
+      const users = links.filter((l) => l.to === s).map((l) => l.from.ms.microservice_name);
       ipBox.appendChild(el("span", "env-ref", users.length ? "used by " + joinWords(users) : "not used by other services"));
       fact("Service IP", ["addresses"], ipBox);
     }
     if ((ms.environment || []).length) {
       const env = el("div", "env");
       for (const e of ms.environment) {
-        const i = e.indexOf("=");
-        const key = i >= 0 ? e.slice(0, i) : e, val = i >= 0 ? e.slice(i + 1) : "";
+        const { key, value } = splitEnv(e);
         env.appendChild(el("span", "env-key", key));
-        const v = el("span", "env-val", val);
-        for (const [ip, target] of Object.entries(byIp)) {
-          if (target === s || !ipPattern(ip).test(val)) continue;
+        const v = el("span", "env-val", value);
+        for (const { target, re } of targets) {
+          if (target === s || !re.test(value)) continue;
           const ref = el("button", "env-ref", "reaches " + target.ms.microservice_name);
           ref.type = "button";
           ref.addEventListener("click", () => focusService(target));

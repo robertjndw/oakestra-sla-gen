@@ -24,10 +24,10 @@ _STRICT = ConfigDict(extra="forbid")
 
 NAME_PATTERN = r"^[a-zA-Z0-9]{1,10}$"
 ENV_PATTERN = r"^[A-Za-z_][A-Za-z0-9_]*=.*$"
-# host:container[/tcp|udp], multiple mappings separated by ';', e.g. "80:80;443:443/tcp"
 # Oakestra's service IP range; any 10.30.X.Y the user picks is load-balanced
-# round-robin across the service's instances.
-RR_IP_PATTERN = r"^10\.30\.\d{1,3}\.\d{1,3}$"
+# round-robin across the service's instances. The groups are for validation.py's octet check.
+RR_IP_PATTERN = r"^10\.30\.(\d{1,3})\.(\d{1,3})$"
+# host:container[/tcp|udp], multiple mappings separated by ';', e.g. "80:80;443:443/tcp"
 PORT_PATTERN = r"^\d{1,5}:\d{1,5}(/(tcp|udp))?(;\d{1,5}:\d{1,5}(/(tcp|udp))?)*$"
 
 

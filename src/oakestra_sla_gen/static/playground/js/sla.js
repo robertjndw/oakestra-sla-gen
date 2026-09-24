@@ -1,6 +1,6 @@
 import { formatMb, joinWords, plural } from "./format.js";
 
-export const FIELD_LABELS = {
+const FIELD_LABELS = {
   code: "image", virtualization: "runtime", port: "ports", vcpus: "vCPU", vgpus: "GPUs",
   memory: "memory", storage: "storage", environment: "environment", cmd: "command",
   constraints: "placement", addresses: "service IP",
@@ -85,11 +85,16 @@ export function firstDraftLine(sla) {
   return plural(names.length, "service") + ": " + joinWords(names);
 }
 
+export function splitEnv(entry) {
+  const i = entry.indexOf("=");
+  return i >= 0 ? { key: entry.slice(0, i), value: entry.slice(i + 1) } : { key: entry, value: "" };
+}
+
 // Everything in a service's config that could hold another service's IP.
 export function refsFor(ms) {
   const refs = (ms.environment || []).map((e) => {
-    const i = e.indexOf("=");
-    return { label: i >= 0 ? e.slice(0, i) : e, value: i >= 0 ? e.slice(i + 1) : "" };
+    const { key, value } = splitEnv(e);
+    return { label: key, value };
   });
   for (const c of ms.cmd || []) refs.push({ label: "cmd", value: String(c) });
   return refs;

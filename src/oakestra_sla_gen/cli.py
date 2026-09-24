@@ -1,6 +1,7 @@
 """Command line interface: generate an SLA from free text, validate one, or serve over HTTP."""
 
 import argparse
+import functools
 import json
 import os
 import pathlib
@@ -17,7 +18,7 @@ from .generator import (
     format_question,
 )
 from .models import Clarification
-from .validation import validate_sla
+from .validation import iter_microservices, validate_sla
 
 
 def _add_llm_arguments(parser: argparse.ArgumentParser) -> None:
@@ -31,6 +32,26 @@ def _add_llm_arguments(parser: argparse.ArgumentParser) -> None:
         choices=["low", "medium", "high"],
         default=DEFAULT_REASONING_EFFORT,
     )
+
+
+def _llm_from_args(args: argparse.Namespace):
+    return build_llm(
+        base_url=args.base_url,
+        model=args.model,
+        api_key=args.api_key,
+        reasoning_effort=args.reasoning_effort,
+    )
+
+
+def _read_text_arg(args: argparse.Namespace) -> str | None:
+    """The text from -f, the positional argument, or piped stdin, in that order."""
+    if args.file:
+        return pathlib.Path(args.file).read_text()
+    if args.text:
+        return args.text
+    if not sys.stdin.isatty():
+        return sys.stdin.read()
+    return None
 
 
 def _format_microservice_line(microservice: dict) -> str:
@@ -55,9 +76,8 @@ def _format_microservice_line(microservice: dict) -> str:
 def _print_draft_summary(sla: dict | None) -> None:
     if not sla:
         return
-    for application in sla.get("applications", []):
-        for microservice in application.get("microservices", []):
-            print(f"  {_format_microservice_line(microservice)}", file=sys.stderr)
+    for microservice in iter_microservices(sla):
+        print(f"  {_format_microservice_line(microservice)}", file=sys.stderr)
 
 
 def _print_questions(questions: list[Clarification]) -> None:
@@ -135,28 +155,17 @@ def _generate_command(argv: list[str]) -> int:
     )
     args = parser.parse_args(argv)
 
+    text = _read_text_arg(args)
     if args.compose:
         # Notes are optional next to a compose file, so having none isn't a usage error.
-        if args.file:
-            notes = pathlib.Path(args.file).read_text()
-        elif args.text:
-            notes = args.text
-        elif not sys.stdin.isatty():
-            notes = sys.stdin.read()
-        else:
-            notes = ""
         try:
             compose_text = pathlib.Path(args.compose).read_text()
-            description = compose_message(compose_text, notes)
+            description = compose_message(compose_text, text or "")
         except (ComposeError, OSError) as error:
             print(f"error: {error}", file=sys.stderr)
             return 2
-    elif args.file:
-        description = pathlib.Path(args.file).read_text()
-    elif args.text:
-        description = args.text
-    elif not sys.stdin.isatty():
-        description = sys.stdin.read()
+    elif text is not None:
+        description = text
     else:
         parser.error("provide a description, -f FILE, or pipe one in on stdin")
 
@@ -173,14 +182,8 @@ def _generate_command(argv: list[str]) -> int:
             print(f"attempt {attempt}: verified", file=sys.stderr)
 
     try:
-        llm = build_llm(
-            base_url=args.base_url,
-            model=args.model,
-            api_key=args.api_key,
-            reasoning_effort=args.reasoning_effort,
-        )
         session = SLASession(
-            llm=llm,
+            llm=_llm_from_args(args),
             method=args.method,
             customer_id=args.customer_id,
             max_retries=args.max_retries,
@@ -268,14 +271,11 @@ def _serve_command(argv: list[str]) -> int:
         )
         return 2
 
-    llm = build_llm(
-        base_url=args.base_url,
-        model=args.model,
-        api_key=args.api_key,
-        reasoning_effort=args.reasoning_effort,
-    )
+    llm = _llm_from_args(args)
+    # The runnables are stateless and only `method` varies, so build each one once rather
+    # than per request.
     app = create_app(
-        lambda method: build_structured_llm(llm, method=method),
+        functools.cache(lambda method: build_structured_llm(llm, method=method)),
         playground=args.playground,
         model=args.model,
     )

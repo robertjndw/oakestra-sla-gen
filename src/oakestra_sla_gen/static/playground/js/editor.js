@@ -8,6 +8,7 @@ const LINE_HEIGHT_PX = 20;
 const editorEl = $("editor");
 const highlightEl = $("highlight");
 const gutterEl = $("gutter");
+let gutterLines = -1;
 
 function highlightInto(target, text) {
   const frag = document.createDocumentFragment();
@@ -35,7 +36,10 @@ function paint() {
   const text = editorEl.value;
   highlightInto(highlightEl, text);
   const lines = text.split("\n").length;
-  gutterEl.textContent = Array.from({ length: lines }, (_, i) => i + 1).join("\n") + "\n";
+  if (lines !== gutterLines) {
+    gutterLines = lines;
+    gutterEl.textContent = Array.from({ length: lines }, (_, i) => i + 1).join("\n") + "\n";
+  }
   syncScroll();
 }
 

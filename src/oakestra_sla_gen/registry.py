@@ -72,14 +72,25 @@ def _fetch_token(challenge: dict[str, str], repo: str, timeout: float) -> str | 
     params = {k: v for k, v in challenge.items() if k != "realm"}
     if "scope" not in params:
         params["scope"] = f"repository:{repo}:pull"
-    query = "&".join(f"{k}={urllib.parse.quote(v, safe='')}" for k, v in params.items())
-    url = f"{realm}?{query}" if query else realm
+    url = f"{realm}?{urllib.parse.urlencode(params, quote_via=urllib.parse.quote)}"
     try:
         with urllib.request.urlopen(url, timeout=timeout) as resp:
             data = json.loads(resp.read())
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError):
         return None
     return data.get("token") or data.get("access_token")
+
+
+def _head(request: urllib.request.Request, timeout: float) -> tuple[int | None, dict]:
+    """Return (status, error headers), with status None on any transport failure. Headers are
+    only kept for HTTP errors, which is where the 401 challenge lives."""
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as resp:
+            return resp.status, {}
+    except urllib.error.HTTPError as exc:
+        return exc.code, exc.headers
+    except (urllib.error.URLError, TimeoutError, OSError):
+        return None, {}
 
 
 def _manifest_status(host: str, repo: str, tag: str, timeout: float) -> int | None:
@@ -91,32 +102,22 @@ def _manifest_status(host: str, repo: str, tag: str, timeout: float) -> int | No
     # HEAD, not GET: Docker Hub counts manifest GETs against the anonymous pull rate
     # limit, which would eat into the quota the user's actual deployments need.
     request = urllib.request.Request(url, headers={"Accept": _ACCEPT}, method="HEAD")
-    try:
-        with urllib.request.urlopen(request, timeout=timeout) as resp:
-            return resp.status
-    except urllib.error.HTTPError as exc:
-        if exc.code != 401:
-            return exc.code
-        challenge = _parse_www_authenticate(exc.headers.get("WWW-Authenticate", ""))
-        if challenge is None:
-            return exc.code
-        token = _fetch_token(challenge, repo, timeout)
-        if token is None:
-            return exc.code
-        request.add_header("Authorization", f"Bearer {token}")
-        try:
-            with urllib.request.urlopen(request, timeout=timeout) as resp:
-                return resp.status
-        except urllib.error.HTTPError as exc2:
-            return exc2.code
-        except (urllib.error.URLError, TimeoutError, OSError):
-            return None
-    except (urllib.error.URLError, TimeoutError, OSError):
-        return None
+    status, headers = _head(request, timeout)
+    if status != 401:
+        return status
+    challenge = _parse_www_authenticate(headers.get("WWW-Authenticate", ""))
+    token = _fetch_token(challenge, repo, timeout) if challenge is not None else None
+    if token is None:
+        return status
+    request.add_header("Authorization", f"Bearer {token}")
+    return _head(request, timeout)[0]
 
 
 @functools.lru_cache(maxsize=256)
-def _image_exists_cached(ref: str, timeout: float) -> bool | None:
+def image_exists(ref: str, timeout: float = 5.0) -> bool | None:
+    """True if the image:tag resolves in its registry, False if the registry says it doesn't
+    exist, None if we can't tell (network error, timeout, private/auth-required registry,
+    unexpected status)."""
     host, repo, tag = _parse_ref(ref)
     status = _manifest_status(host, repo, tag, timeout)
 
@@ -133,10 +134,3 @@ def _image_exists_cached(ref: str, timeout: float) -> bool | None:
         # user-typed images into a question instead of making the model replace them.
         return False if host == DOCKER_HUB_API_HOST else None
     return None
-
-
-def image_exists(ref: str, timeout: float = 5.0) -> bool | None:
-    """True if the image:tag resolves in its registry, False if the registry says it doesn't
-    exist, None if we can't tell (network error, timeout, private/auth-required registry,
-    unexpected status)."""
-    return _image_exists_cached(ref, timeout)

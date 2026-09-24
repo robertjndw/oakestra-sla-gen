@@ -18,7 +18,6 @@ from oakestra_sla_gen import registry
 from oakestra_sla_gen.registry import (
     DOCKER_HUB_API_HOST,
     _fetch_token,
-    _image_exists_cached,
     _manifest_status,
     _parse_ref,
     _parse_www_authenticate,
@@ -30,9 +29,9 @@ from oakestra_sla_gen.registry import (
 def _clear_cache():
     # image_exists is lru_cache'd; without this, an earlier test's monkeypatched result
     # for the same ref would leak into a later test.
-    _image_exists_cached.cache_clear()
+    image_exists.cache_clear()
     yield
-    _image_exists_cached.cache_clear()
+    image_exists.cache_clear()
 
 
 # --- reference parsing -------------------------------------------------------------

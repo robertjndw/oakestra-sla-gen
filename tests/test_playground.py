@@ -4,20 +4,11 @@ import posixpath
 import re
 
 from fastapi.testclient import TestClient
+from helpers import COMPOSE_YAML, FakeStructuredLLM, _ok, _request
 from langchain_core.messages import HumanMessage
-from test_generator import FakeStructuredLLM, _request
-from test_server import _ok
 
 from oakestra_sla_gen.models import Clarification
 from oakestra_sla_gen.server import create_app
-
-_COMPOSE_YAML = """\
-services:
-  web:
-    image: nginx:1.25
-    ports:
-      - "8080:80"
-"""
 
 
 def _client(responses, playground=True):
@@ -93,13 +84,13 @@ def test_start_session_returns_sla_questions_and_attempts():
 def test_start_session_with_compose_works():
     client, fake = _client([_ok(_request("web"))])
 
-    response = client.post("/playground/sessions", json={"compose": _COMPOSE_YAML})
+    response = client.post("/playground/sessions", json={"compose": COMPOSE_YAML})
 
     assert response.status_code == 200
     body = response.json()
     assert body["sla"]["applications"][0]["microservices"][0]["microservice_name"] == "web"
     last_human = [m for m in fake.calls[0] if isinstance(m, HumanMessage)][-1].content
-    assert _COMPOSE_YAML in last_human
+    assert COMPOSE_YAML in last_human
 
 
 def test_answer_continues_the_same_session():

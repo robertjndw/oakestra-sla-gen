@@ -27,8 +27,18 @@ export function takeModelDraft(sla) {
   const keepEdits = editor.getText().trim() && isEdited() &&
     !window.confirm("The model sent a new draft. Replace your edits in the Code view with it?");
   baselineText = text;
-  if (!keepEdits) editor.setText(text);
-  settle();
+  if (keepEdits) {
+    settle();
+    return;
+  }
+  // The server only sends drafts that passed validation, so skip the /validate round trip.
+  editor.setText(text);
+  clearTimeout(debounceId);
+  validateSeq++;
+  shownSla = sla;
+  problems = [];
+  parseError = null;
+  renderOutput();
 }
 
 // Leaves baselineText alone on purpose: this attempt failed validation, so "Reset to model
@@ -77,7 +87,7 @@ function settle() {
   });
 }
 
-export function setMode(next) {
+function setMode(next) {
   mode = next;
   $("mode-visual-btn").setAttribute("aria-pressed", String(next === "visual"));
   $("mode-code-btn").setAttribute("aria-pressed", String(next === "code"));

@@ -12,14 +12,13 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-import openai
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .generator import Draft, SLAGenerationError, SLASession
-from .server import GenerateRequest
+from .server import GenerateRequest, GenerationFailure
 
 # Each session holds its whole LLM conversation, so cap how many we keep around.
 MAX_SESSIONS = 32
@@ -96,18 +95,15 @@ def add_playground(
         except SLAGenerationError as error:
             # The session itself is still usable - `SLASession._turn` only commits to
             # `messages`/`draft` on success - so the caller can answer and try again.
+            failure = GenerationFailure(
+                detail="could not produce a valid SLA",
+                errors=error.errors,
+                last_candidate=error.last_candidate,
+            )
             return JSONResponse(
                 status_code=422,
-                content={
-                    "detail": "could not produce a valid SLA",
-                    "errors": error.errors,
-                    "last_candidate": error.last_candidate,
-                    "attempts": attempts,
-                    "session_id": session_id,
-                },
+                content=failure.model_dump() | {"attempts": attempts, "session_id": session_id},
             )
-        except openai.APIError as error:
-            return JSONResponse(status_code=502, content={"detail": f"LLM server error: {error}"})
         else:
             return {
                 "session_id": session_id,
@@ -127,12 +123,13 @@ def add_playground(
         name="playground-static",
     )
 
+    page = (importlib.resources.files(__package__) / "static/playground/index.html").read_text()
+
     # Same reason as the comment in server.py: plain `def`, not `async def`, so FastAPI
     # runs these in its thread pool instead of blocking the event loop on the LLM call.
     @app.get("/playground", response_class=HTMLResponse)
     def playground_page() -> HTMLResponse:
-        html = importlib.resources.files(__package__) / "static/playground/index.html"
-        return HTMLResponse(html.read_text())
+        return HTMLResponse(page)
 
     # The page shows which model it's talking to, since comparing models is most of what the
     # playground gets used for.
