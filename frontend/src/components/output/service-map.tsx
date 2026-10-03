@@ -11,7 +11,6 @@ import type { Edge as FlowEdge, EdgeProps, Node as FlowNode, NodeProps } from "@
 import { createContext, useContext, useMemo, useState } from "react";
 import { Canvas } from "@/components/ai-elements/canvas";
 import { Controls } from "@/components/ai-elements/controls";
-import { Edge } from "@/components/ai-elements/edge";
 import { Node, NodeContent } from "@/components/ai-elements/node";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { plural } from "@/lib/format";
@@ -23,7 +22,7 @@ import { computeMapLayout, NODE_H, NODE_W, OUTSIDE_H, OUTSIDE_W, serviceId } fro
 import type { ServiceMark } from "./marks";
 import "./output.css";
 import { OutsidePreview, ServicePreview } from "./service-preview";
-import { useIsDark } from "./use-is-dark";
+import { useIsDark } from "@/hooks/use-is-dark";
 
 interface ServiceNodeData extends Record<string, unknown> {
   entry: ServiceEntry;
@@ -154,10 +153,11 @@ function EdgeLabel({
 }
 
 function LinkEdge(props: EdgeProps) {
-  const [, x, y] = getBezierPath({ ...props, sourcePosition: Position.Right, targetPosition: Position.Left });
+  // Not Edge.Animated: its dot loops forever and ignores prefers-reduced-motion.
+  const [path, x, y] = getBezierPath({ ...props, sourcePosition: Position.Right, targetPosition: Position.Left });
   return (
     <>
-      <Edge.Animated {...props} />
+      <BaseEdge id={props.id} path={path} markerEnd={props.markerEnd} style={props.style} />
       <EdgeLabel x={x} y={y} text={String(props.label ?? "")} dimmed={!!props.data?.dimmed} />
     </>
   );

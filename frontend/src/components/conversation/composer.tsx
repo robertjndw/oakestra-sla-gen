@@ -6,10 +6,12 @@ import {
   PromptInputBody,
   PromptInputButton,
   PromptInputFooter,
+  PromptInputHeader,
   PromptInputSubmit,
   PromptInputTextarea,
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useSessionContext } from "@/hooks/session-context";
 import type { InputFile } from "@/lib/types";
@@ -91,8 +93,9 @@ export function Composer({ text, onTextChange, inputFile, onInputFileChange, for
         // Fires when moving onto a child too, so only clear once the pointer really left.
         if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragOver(false);
       }}
-      // Capture and stop here so PromptInput's own drop handler does not also queue the file
-      // as a blob attachment.
+      // Stop the drop here, or PromptInput queues the file as one of its own attachments too.
+      // Those only give us a blob URL, and we need the text right away to tell compose from SLA
+      // and to enforce the size limit, so readInputFile handles all uploads.
       onDropCapture={(e) => {
         if (!isFileDrag(e)) return;
         e.preventDefault();
@@ -104,28 +107,28 @@ export function Composer({ text, onTextChange, inputFile, onInputFileChange, for
     >
       <PromptInput onSubmit={submit} aria-label="Message composer">
         {!settingsLocked && inputFile && (
-          <div className="flex w-full items-center px-3 pt-3">
-            <span className="inline-flex max-w-full items-center gap-1.5 rounded-md border bg-muted px-2 py-1 text-xs">
-              <FileTextIcon className="size-3.5 shrink-0" aria-hidden />
-              <span className="font-medium" data-testid="file-chip-kind">
-                {KIND_LABEL[inputFile.kind]}
-              </span>
-              <span className="truncate" data-testid="file-chip-name">
+          <PromptInputHeader className="px-3 pt-3">
+            <Badge variant="secondary" className="h-6 max-w-full gap-1.5 pr-0.5">
+              <FileTextIcon aria-hidden />
+              <span data-testid="file-chip-kind">{KIND_LABEL[inputFile.kind]}</span>
+              <span className="truncate font-normal" data-testid="file-chip-name">
                 {inputFile.name}
               </span>
-              <button
+              <Button
                 type="button"
-                className="rounded-sm p-0.5 hover:bg-background"
-                aria-label="Remove attached file"
+                variant="ghost"
+                size="icon-xs"
+                className="size-5 rounded-full"
+                aria-label={`Remove ${inputFile.name}`}
                 onClick={() => {
                   onInputFileChange(null);
                   inputRef.current?.focus();
                 }}
               >
-                <XIcon className="size-3" aria-hidden />
-              </button>
-            </span>
-          </div>
+                <XIcon aria-hidden />
+              </Button>
+            </Badge>
+          </PromptInputHeader>
         )}
         <PromptInputBody>
           <PromptInputTextarea
@@ -166,12 +169,20 @@ export function Composer({ text, onTextChange, inputFile, onInputFileChange, for
           </PromptInputTools>
           <div className="flex items-center gap-1.5">
             {state.sessionId && state.modelSla && (
-              <Button type="button" variant="outline" size="sm" disabled={turnRunning} onClick={accept}>
+              <Button
+                type="button"
+                variant={model.acceptPrimary ? "default" : "outline"}
+                size="sm"
+                disabled={turnRunning}
+                onClick={accept}
+              >
                 Accept draft
               </Button>
             )}
             <PromptInputSubmit
               size="sm"
+              // Only one primary action at a time; with nothing typed, Accept is the next step.
+              variant={model.acceptPrimary ? "outline" : "default"}
               className="px-3"
               status={turnRunning ? "submitted" : undefined}
               disabled={!model.canSend}

@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { joinWords, plural } from "@/lib/format";
 import { describePlacement, describeResources, fieldLabel, parsePorts, portLabel } from "@/lib/sla";
 import type { ServiceLink } from "@/lib/sla";
@@ -44,23 +46,26 @@ export function ServicePreview({ service: s, mark, links }: Props) {
       </div>
 
       {mark.errors.length > 0 && (
-        <div className="space-y-1 rounded-md bg-rust-soft px-2.5 py-2 text-xs text-rust">
-          <p className="font-semibold">{plural(mark.errors.length, "problem")}</p>
-          <ul className="list-disc space-y-0.5 pl-4">
-            {mark.errors.slice(0, MAX_ERRORS).map((e, i) => (
-              <li key={i}>{e}</li>
-            ))}
-          </ul>
-          {mark.errors.length > MAX_ERRORS && <p>and {mark.errors.length - MAX_ERRORS} more</p>}
-        </div>
+        // Alert defaults to role="alert", which would be announced every time the card opens.
+        <Alert variant="danger" role="group" className="gap-1 rounded-md px-2.5 py-2 text-xs">
+          <AlertTitle className="font-semibold">{plural(mark.errors.length, "problem")}</AlertTitle>
+          <AlertDescription className="text-xs">
+            <ul className="list-disc space-y-0.5 pl-4">
+              {mark.errors.slice(0, MAX_ERRORS).map((e, i) => (
+                <li key={i}>{e}</li>
+              ))}
+            </ul>
+            {mark.errors.length > MAX_ERRORS && <p>and {mark.errors.length - MAX_ERRORS} more</p>}
+          </AlertDescription>
+        </Alert>
       )}
       {mark.added ? (
-        <p className="rounded-md bg-amber-soft px-2.5 py-1.5 text-xs text-amber">New in this draft</p>
+        <Badge variant="warning">New in this draft</Badge>
       ) : (
         mark.changed.length > 0 && (
-          <p className="rounded-md bg-amber-soft px-2.5 py-1.5 text-xs text-amber">
+          <Badge variant="warning" className="h-auto justify-start text-left whitespace-normal">
             Changed: {joinWords(mark.changed.map(fieldLabel))}
-          </p>
+          </Badge>
         )
       )}
 

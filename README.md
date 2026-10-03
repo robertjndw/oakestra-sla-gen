@@ -145,7 +145,7 @@ are printed and the command exits with `3`.
 | `--model` | `OAKESTRA_SLA_MODEL` | `qwen/qwen3.8-27b` | Model name |
 | `--api-key` | `OPENAI_API_KEY` | `lm-studio` | API key |
 | `--reasoning-effort` | | `low` | `low`, `medium` or `high` |
-| `--method` | | `prompt` | Structured output method: `prompt`, `json_schema` or `function_calling` |
+| `--method` | `OAKESTRA_SLA_METHOD` | `prompt` | Structured output method: `prompt`, `json_schema` or `function_calling`. Pick what your LLM server supports |
 | `--max-retries` | | `3` | Correction rounds before giving up |
 | `--customer-id` | | `Admin` | Oakestra customer ID written into the SLA. With `--sla`, defaults to that file's own |
 | `--no-image-check` | | off | Skip checking that images exist in their registry |
@@ -159,6 +159,11 @@ are printed and the command exits with `3`.
 Why `prompt` and `qwen/qwen3.8-27b` are the defaults is covered in the
 [design notes](docs/design.md#structured-output-methods). For faster but less accurate
 results, try `--model openai/gpt-oss-20b`.
+
+Which method to use depends on the LLM server. `prompt` works everywhere and is the safe choice
+for LM Studio and other local servers, whose constrained decoding can silently drop or garble
+fields. `json_schema` suits servers with reliable constrained decoding, such as
+OpenAI, and `function_calling` needs a model and server that support tool calling.
 
 ## Docker Compose input
 
@@ -212,8 +217,10 @@ uv run oakestra-sla-gen serve          # http://127.0.0.1:8000, OpenAPI docs at 
 uv run oakestra-sla-gen serve --host 0.0.0.0 --port 9000 --model openai/gpt-oss-20b
 ```
 
-`serve` accepts the same `--base-url`, `--model`, `--api-key` and `--reasoning-effort` flags
-(and env vars) as generation. They're fixed at startup; everything else is set per request.
+`serve` accepts the same `--base-url`, `--model`, `--api-key`, `--reasoning-effort` and
+`--method` flags (and env vars) as generation. They're fixed at startup; everything else is set
+per request. A request can still override the method with its own `method` field, which is
+handy for comparing methods against one server.
 
 | Endpoint | Body | Response |
 |---|---|---|
@@ -222,7 +229,8 @@ uv run oakestra-sla-gen serve --host 0.0.0.0 --port 9000 --model openai/gpt-oss-
 
 For `/generate`, one of `description`, `compose` or `sla` is required. `compose` and `sla`
 take the raw file text and can't be combined. Next to either one, `description` is used as
-notes. `max_retries` is capped at 10. Error responses:
+notes. `method` is optional and defaults to the server's `--method`. `max_retries` is capped
+at 10. Error responses:
 
 - `422` with `{"detail", "errors", "last_candidate"}` if no valid SLA came out within
   `max_retries`
@@ -306,8 +314,9 @@ Prebuilt images for amd64 and arm64 are published to `ghcr.io/robertjndw/oakestr
 each `v*` git tag.
 
 The LLM isn't part of the container. By default it talks to LM Studio on the Docker host at
-`http://host.docker.internal:1234/v1`. Set `OPENAI_BASE_URL`, `OPENAI_API_KEY` and
-`OAKESTRA_SLA_MODEL` in the environment (or a `.env` file) to point it somewhere else.
+`http://host.docker.internal:1234/v1`. Set `OPENAI_BASE_URL`, `OPENAI_API_KEY`,
+`OAKESTRA_SLA_MODEL` and `OAKESTRA_SLA_METHOD` in the environment (or a `.env` file) to point it
+somewhere else.
 
 > [!NOTE]
 > On Linux, LM Studio has to listen on all interfaces rather than only `127.0.0.1`, or the

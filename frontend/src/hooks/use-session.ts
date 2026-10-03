@@ -341,7 +341,7 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
     case "keep-refining":
       return { ...state, accepted: false };
     case "new-session":
-      // Settings outlive the conversation: people compare models and methods across sessions,
+      // Settings outlive the conversation: people compare runs across sessions,
       // and the settings popover keeps its own copy of the retries field that would go stale.
       return { ...initialState(), settings: state.settings, requestToken: action.token };
     case "load-candidate":

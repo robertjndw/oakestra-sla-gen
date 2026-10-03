@@ -11,9 +11,9 @@ export default function App() {
   return (
     <SessionProvider>
       <TooltipProvider>
-        <div className="flex min-h-screen flex-col lg:h-screen">
+        <div className="flex min-h-dvh flex-col lg:h-dvh">
           <TopBar />
-          <main className="grid min-h-0 flex-1 grid-cols-1 lg:h-[calc(100vh-52px)] lg:grid-cols-[minmax(360px,5fr)_7fr]">
+          <main className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(360px,5fr)_7fr]">
             <ConversationPane />
             <OutputPane />
           </main>

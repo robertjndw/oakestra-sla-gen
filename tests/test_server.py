@@ -9,7 +9,7 @@ from langchain_core.messages import HumanMessage
 from oakestra_sla_gen.server import create_app
 
 
-def _client(responses, seen_methods=None):
+def _client(responses, seen_methods=None, **app_options):
     fake = FakeStructuredLLM(responses)
 
     def factory(method):
@@ -17,7 +17,7 @@ def _client(responses, seen_methods=None):
             seen_methods.append(method)
         return fake
 
-    return TestClient(create_app(factory)), fake
+    return TestClient(create_app(factory, **app_options)), fake
 
 
 def test_generate_returns_verified_sla_and_passes_method_through():
@@ -29,6 +29,18 @@ def test_generate_returns_verified_sla_and_passes_method_through():
     assert response.status_code == 200
     assert response.json()["applications"][0]["microservices"][0]["microservice_name"] == "nginx"
     assert methods == ["json_schema"]
+
+
+def test_generate_uses_the_server_default_method_unless_the_request_picks_one():
+    methods = []
+    client, _ = _client(
+        [_ok(_request("nginx"))] * 2, seen_methods=methods, default_method="function_calling"
+    )
+
+    client.post("/generate", json={"description": "nginx"})
+    client.post("/generate", json={"description": "nginx", "method": "prompt"})
+
+    assert methods == ["function_calling", "prompt"]
 
 
 def test_generate_reports_errors_when_retries_run_out():

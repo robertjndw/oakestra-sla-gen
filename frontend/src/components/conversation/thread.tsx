@@ -4,7 +4,7 @@ import {
   ConversationEmptyState,
   ConversationScrollButton,
 } from "@/components/ai-elements/conversation";
-import { Suggestion, Suggestions } from "@/components/ai-elements/suggestion";
+import { Item, ItemContent, ItemDescription, ItemTitle } from "@/components/ui/item";
 import { EXAMPLE_PROMPTS } from "@/lib/constants";
 import type { Round } from "@/hooks/use-session";
 import type { QuestionAnswer } from "@/lib/answers";
@@ -40,19 +40,22 @@ export function Thread({ rounds, onPickExample, ...rest }: Props) {
               <p className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
                 Or start from an example
               </p>
-              <Suggestions className="w-full flex-col items-stretch gap-2">
+              <div className="flex flex-col gap-2">
                 {EXAMPLE_PROMPTS.map((ex) => (
-                  <Suggestion
-                    key={ex.text}
-                    suggestion={ex.text}
-                    onClick={onPickExample}
-                    className="h-auto flex-col items-start justify-start gap-0.5 rounded-lg px-3 py-2 text-left font-normal whitespace-normal"
-                  >
-                    <span>{ex.text}</span>
-                    {ex.note && <span className="text-muted-foreground text-xs">{ex.note}</span>}
-                  </Suggestion>
+                  <Item key={ex.text} variant="outline" size="sm" asChild>
+                    <button
+                      type="button"
+                      className="cursor-pointer text-left hover:bg-muted"
+                      onClick={() => onPickExample(ex.text)}
+                    >
+                      <ItemContent className="gap-0.5">
+                        <ItemTitle className="line-clamp-none font-normal">{ex.text}</ItemTitle>
+                        {ex.note && <ItemDescription className="text-xs">{ex.note}</ItemDescription>}
+                      </ItemContent>
+                    </button>
+                  </Item>
                 ))}
-              </Suggestions>
+              </div>
             </div>
           </ConversationEmptyState>
         ) : (

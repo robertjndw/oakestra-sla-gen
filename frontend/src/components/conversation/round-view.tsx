@@ -1,5 +1,6 @@
 import { Message, MessageContent } from "@/components/ai-elements/message";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2Icon, FileTextIcon, OctagonAlertIcon } from "lucide-react";
 import type { QuestionAnswer } from "@/lib/answers";
@@ -28,10 +29,10 @@ export function RoundView({ round, activeFormId, answers, onAnswersChange, loadC
         <Message from="user">
           <MessageContent>
             {round.fileName && (
-              <span className="inline-flex w-fit max-w-full items-center gap-1.5 rounded-md bg-background/70 px-2 py-0.5 text-xs">
-                <FileTextIcon className="size-3.5 shrink-0" aria-hidden />
+              <Badge variant="outline" className="max-w-full bg-background">
+                <FileTextIcon aria-hidden />
                 <span className="truncate">{round.fileName}</span>
-              </span>
+              </Badge>
             )}
             <p className="whitespace-pre-wrap break-words">{round.text}</p>
           </MessageContent>
@@ -52,54 +53,62 @@ export function RoundView({ round, activeFormId, answers, onAnswersChange, loadC
     case "failed": {
       const shown = round.errors.slice(0, 5);
       return (
-        <Alert variant="destructive">
-          <OctagonAlertIcon />
-          <AlertTitle>{`No valid draft. Gave up after ${plural(round.attempts.length || 1, "attempt")}`}</AlertTitle>
-          <AlertDescription className="flex flex-col gap-2">
-            {shown.length > 0 && (
-              <ul className="list-disc space-y-0.5 pl-4">
-                {shown.map((e, i) => (
-                  <li key={i}>{e}</li>
-                ))}
-                {round.errors.length > 5 && <li>{`and ${round.errors.length - 5} more`}</li>}
-              </ul>
-            )}
-            <p>
-              {round.unchangedDraft !== null
-                ? `Draft ${round.unchangedDraft} is unchanged. Add detail or rephrase, then send again.`
-                : "Add detail or rephrase, then send again. More attempts per round in Settings can also help."}
-            </p>
-            {round.lastCandidate && (
-              <div>
-                <Button type="button" variant="outline" size="sm" onClick={() => loadCandidate(round.lastCandidate!)}>
-                  Fix the last attempt by hand
-                </Button>
-              </div>
-            )}
-            <div className="text-foreground">
-              <Attempts attempts={round.attempts} />
-            </div>
-          </AlertDescription>
-        </Alert>
+        <Message from="assistant">
+          <MessageContent className="w-full">
+            <Alert variant="destructive">
+              <OctagonAlertIcon />
+              <AlertTitle>{`No valid draft. Gave up after ${plural(round.attempts.length || 1, "attempt")}`}</AlertTitle>
+              <AlertDescription className="flex flex-col gap-2">
+                {shown.length > 0 && (
+                  <ul className="list-disc space-y-0.5 pl-4">
+                    {shown.map((e, i) => (
+                      <li key={i}>{e}</li>
+                    ))}
+                    {round.errors.length > 5 && <li>{`and ${round.errors.length - 5} more`}</li>}
+                  </ul>
+                )}
+                <p>
+                  {round.unchangedDraft !== null
+                    ? `Draft ${round.unchangedDraft} is unchanged. Add detail or rephrase, then send again.`
+                    : "Add detail or rephrase, then send again. More attempts per round in Settings can also help."}
+                </p>
+                {round.lastCandidate && (
+                  <div>
+                    <Button type="button" variant="outline" size="sm" onClick={() => loadCandidate(round.lastCandidate!)}>
+                      Fix the last attempt by hand
+                    </Button>
+                  </div>
+                )}
+                <div className="text-foreground">
+                  <Attempts attempts={round.attempts} />
+                </div>
+              </AlertDescription>
+            </Alert>
+          </MessageContent>
+        </Message>
       );
     }
     case "notice":
       return (
-        <Alert>
-          <OctagonAlertIcon />
-          <AlertTitle>{round.title}</AlertTitle>
-          <AlertDescription className="flex flex-col gap-2">
-            {round.detail && <p>{round.detail}</p>}
-            {round.help && <p>{round.help}</p>}
-            {round.action === "new-session" && (
-              <div>
-                <Button type="button" size="sm" onClick={newSession}>
-                  Start a new session
-                </Button>
-              </div>
-            )}
-          </AlertDescription>
-        </Alert>
+        <Message from="assistant">
+          <MessageContent className="w-full">
+            <Alert>
+              <OctagonAlertIcon />
+              <AlertTitle>{round.title}</AlertTitle>
+              <AlertDescription className="flex flex-col gap-2">
+                {round.detail && <p>{round.detail}</p>}
+                {round.help && <p>{round.help}</p>}
+                {round.action === "new-session" && (
+                  <div>
+                    <Button type="button" size="sm" onClick={newSession}>
+                      Start a new session
+                    </Button>
+                  </div>
+                )}
+              </AlertDescription>
+            </Alert>
+          </MessageContent>
+        </Message>
       );
     case "accepted":
       return (

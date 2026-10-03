@@ -41,7 +41,7 @@ class _Entry:
 
 
 def add_playground(
-    app: FastAPI, structured_llm_factory: Callable[[str], Any], *, model: str | None = None
+    app: FastAPI, structured_llm_factory: Callable[[str | None], Any], *, model: str | None = None
 ) -> None:
     """Register the playground routes on `app`.
 

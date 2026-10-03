@@ -1,7 +1,7 @@
 """HTTP API around the generator and validator. Needs the `server` extra (FastAPI)."""
 
 from collections.abc import Callable
-from typing import Any, Literal
+from typing import Any
 
 import openai
 from fastapi import FastAPI, Request
@@ -10,7 +10,13 @@ from pydantic import BaseModel, Field, PrivateAttr, model_validator
 
 from .compose import MAX_COMPOSE_CHARS, compose_message
 from .existing_sla import MAX_SLA_CHARS, existing_sla_message, resolve_customer_id
-from .generator import NeedsClarification, SLAGenerationError, generate_sla
+from .generator import (
+    DEFAULT_METHOD,
+    NeedsClarification,
+    OutputMethod,
+    SLAGenerationError,
+    generate_sla,
+)
 from .validation import validate_sla
 
 
@@ -20,7 +26,9 @@ class GenerateRequest(BaseModel):
     # The raw JSON text rather than a parsed object, for the same reason as `compose`: image
     # names have to reach the LLM exactly as the user wrote them.
     sla: str | None = Field(default=None, max_length=MAX_SLA_CHARS)
-    method: Literal["prompt", "json_schema", "function_calling"] = "prompt"
+    # Normally left out so the server's configured method applies; kept for scripting and
+    # for comparing methods against the same server.
+    method: OutputMethod | None = None
     # None (or blank) means "not chosen": an uploaded SLA's own customerID is kept then.
     customer_id: str | None = None
     # Capped so a single request can't keep a worker busy with an LLM for minutes.
@@ -72,13 +80,18 @@ def create_app(
     structured_llm_factory: Callable[[str], Any],
     *,
     model: str | None = None,
+    default_method: OutputMethod = DEFAULT_METHOD,
 ) -> FastAPI:
     """Build the app around `structured_llm_factory(method)`.
 
-    The LLM connection is set up once at startup, but `method` comes in with each
-    request, so we need a factory rather than a ready-made runnable. Tests pass
-    one that returns a fake.
+    The LLM connection is set up once at startup, but a request may still pick its own
+    `method`, so we need a factory rather than a ready-made runnable. Requests that don't
+    get `default_method`. Tests pass a factory that returns a fake.
     """
+
+    def llm_for(method: str | None) -> Any:
+        return structured_llm_factory(method or default_method)
+
     app = FastAPI(
         title="oakestra-sla-gen",
         description="Generate a verified Oakestra SLA from a free-text description.",
@@ -101,7 +114,7 @@ def create_app(
         try:
             return generate_sla(
                 request.message(),
-                structured_llm=structured_llm_factory(request.method),
+                structured_llm=llm_for(request.method),
                 customer_id=request.resolved_customer_id(),
                 max_retries=request.max_retries,
             )
@@ -128,6 +141,6 @@ def create_app(
     # importing it at module scope here would be a circular import at load time.
     from .playground import add_playground
 
-    add_playground(app, structured_llm_factory, model=model)
+    add_playground(app, llm_for, model=model)
 
     return app

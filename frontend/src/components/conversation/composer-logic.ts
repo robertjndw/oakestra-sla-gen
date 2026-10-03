@@ -24,6 +24,11 @@ export interface ComposerModel {
   placeholder: string;
   ariaLabel: string;
   hint: "answer-or-change" | "answer-one" | "shortcut" | null;
+  /**
+   * Show Accept as the main button: there is a draft, the composer is empty and every open
+   * question has an assumption to fall back on.
+   */
+  acceptPrimary: boolean;
 }
 
 export function composerModel(i: ComposerInput): ComposerModel {
@@ -40,7 +45,8 @@ export function composerModel(i: ComposerInput): ComposerModel {
     ariaLabel = "Describe what to deploy";
     if (attached === "sla") placeholder = "What should change? e.g. give the api 2 CPUs and add a Redis cache (optional)";
     else if (attached === "compose") placeholder = "Anything to add? e.g. pin the api to cluster edge1 (optional)";
-    else placeholder = "e.g. A Node.js API on port 3000 with 2 CPUs and 1 GB of memory, talking to a Redis cache";
+    // The empty conversation already lists example prompts, so this only points out the upload.
+    else placeholder = "Describe your services, or drop a compose file or SLA here";
   } else if (i.form) {
     ariaLabel = "Anything else to change";
     placeholder = "Anything else to change? (optional)";
@@ -54,7 +60,9 @@ export function composerModel(i: ComposerInput): ComposerModel {
     if (i.form && !message) hint = i.hasModelDraft ? "answer-or-change" : "answer-one";
     else if (message || attached) hint = "shortcut";
   }
-  return { message, canSend, label, placeholder, ariaLabel, hint };
+  const formNeedsAnswers = !!i.form?.questions.some((q) => !q.assumption);
+  const acceptPrimary = !!i.sessionId && i.hasModelDraft && !i.turnRunning && !message && !formNeedsAnswers;
+  return { message, canSend, label, placeholder, ariaLabel, hint, acceptPrimary };
 }
 
 export type ReadResult = { ok: true; file: InputFile } | { ok: false; error: string };

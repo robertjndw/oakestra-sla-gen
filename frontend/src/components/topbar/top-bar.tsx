@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSessionContext } from "@/hooks/session-context";
 import { useModelName } from "@/hooks/use-info";
 import { Logo } from "./logo";
@@ -35,10 +36,16 @@ export function TopBar() {
       </div>
       <div className="flex shrink-0 items-center gap-2">
         {model && (
-          <Badge variant="secondary" title="Model the server generates with" className="hidden max-w-48 gap-1.5 md:inline-flex">
-            <span className="size-1.5 shrink-0 rounded-full bg-primary" aria-hidden="true" />
-            <span className="truncate">{model}</span>
-          </Badge>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge variant="secondary" tabIndex={0} className="hidden max-w-48 gap-1.5 md:inline-flex">
+                <span className="size-1.5 shrink-0 rounded-full bg-primary" aria-hidden="true" />
+                <span className="sr-only">Model: </span>
+                <span className="truncate">{model}</span>
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent>Model the server generates with</TooltipContent>
+          </Tooltip>
         )}
         <SettingsPopover />
         <Button variant="outline" size="sm" onClick={onNewSession}>

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { joinWords, plural } from "@/lib/format";
 import { describePlacement, describeResources, parsePorts, portLabel, splitEnv } from "@/lib/sla";
 import type { IpTarget, ServiceLink } from "@/lib/sla";
@@ -28,12 +29,26 @@ function Fact({
 }) {
   return (
     <>
-      <dt
-        className={changed ? "font-medium text-amber" : "text-muted-foreground"}
-        title={changed ? "Changed since the previous draft" : undefined}
-      >
-        {label}
-      </dt>
+      {changed ? (
+        <dt>
+          <Tooltip>
+            {/* Focusable so the tooltip also opens from the keyboard. */}
+            <TooltipTrigger asChild>
+              <span
+                tabIndex={0}
+                className="inline-flex items-center gap-1.5 rounded-sm font-medium text-amber focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              >
+                <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-amber-dot" />
+                {label}
+                <span className="sr-only">(changed)</span>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>Changed since the previous draft</TooltipContent>
+          </Tooltip>
+        </dt>
+      ) : (
+        <dt className="text-muted-foreground">{label}</dt>
+      )}
       <dd className="min-w-0 break-words">{children}</dd>
     </>
   );
@@ -61,9 +76,9 @@ export function ServiceCard({ service: s, mark, links, targets }: Props) {
           {ms.microservice_namespace && (
             <span className="text-xs text-muted-foreground">namespace {ms.microservice_namespace}</span>
           )}
-          {mark.added && <Badge className="bg-amber-soft text-amber">New in this draft</Badge>}
+          {mark.added && <Badge variant="warning">New in this draft</Badge>}
           {mark.errors.length > 0 && (
-            <Badge className="bg-rust-soft text-rust">{plural(mark.errors.length, "problem")}</Badge>
+            <Badge variant="danger">{plural(mark.errors.length, "problem")}</Badge>
           )}
         </div>
         {mark.errors.length > 0 && (
@@ -75,7 +90,7 @@ export function ServiceCard({ service: s, mark, links, targets }: Props) {
         )}
       </CardHeader>
       <CardContent className="px-4">
-        <dl className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm">
+        <dl className="grid grid-cols-[6.25rem_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm">
           <Fact label="Image" changed={has("code")}>
             <Code>{ms.code || "none"}</Code>
           </Fact>

@@ -1,9 +1,10 @@
 import { lazy, Suspense, useMemo, useState } from "react";
-import { Artifact } from "@/components/ai-elements/artifact";
+import { Artifact, ArtifactContent } from "@/components/ai-elements/artifact";
 import { useSessionContext } from "@/hooks/session-context";
 import { useLocalStorageState } from "@/hooks/use-local-storage-state";
 import { useValidation } from "@/hooks/use-validation";
 import { MODE_STORAGE_KEY } from "@/lib/constants";
+import { cn } from "@/lib/utils";
 import { isEdited } from "@/hooks/use-session";
 import { EmptyOutput } from "./empty-output";
 import { OutputHeader } from "./output-header";
@@ -22,6 +23,15 @@ function codeStatus(parseError: boolean, edited: boolean, hasText: boolean): str
   if (parseError) return "";
   if (edited) return "Edited by hand. Validated as you type.";
   return hasText ? "This is the draft as the model wrote it." : "";
+}
+
+function EditorPlaceholder() {
+  return (
+    <div role="status" className="flex min-h-0 flex-1 p-4">
+      <div className="flex-1 animate-pulse rounded-lg bg-muted motion-reduce:animate-none" />
+      <span className="sr-only">Loading the editor</span>
+    </div>
+  );
 }
 
 export function OutputPane() {
@@ -66,21 +76,21 @@ export function OutputPane() {
         mode={mode}
         onModeChange={setMode}
       />
-      <div
-        role="progressbar"
-        aria-label="Generating a draft"
-        aria-hidden={!state.turnRunning}
-        className="relative h-0.5 shrink-0 overflow-hidden bg-transparent data-[active=true]:bg-muted"
-        data-active={state.turnRunning}
-      >
-        {state.turnRunning && (
+      {state.turnRunning ? (
+        <div role="progressbar" aria-label="Generating a draft" className="relative h-0.5 shrink-0 overflow-hidden bg-muted">
           <div className="output-indeterminate absolute inset-y-0 left-0 w-1/3 animate-[output-indeterminate_1.4s_ease-in-out_infinite] rounded-full bg-primary" />
+        </div>
+      ) : (
+        // Holds the bar's height so the content does not jump when a turn starts or ends.
+        <div aria-hidden className="h-0.5 shrink-0" />
+      )}
+      <ArtifactContent
+        className={cn(
+          "flex min-h-0 flex-col transition-opacity duration-200",
+          // CodeMirror scrolls itself and has to reach the edges.
+          showCode ? "overflow-visible p-0" : "overflow-auto p-4 sm:p-6",
+          state.turnRunning && "opacity-55",
         )}
-      </div>
-      <div
-        className={`flex min-h-0 flex-1 flex-col transition-opacity duration-200 ${
-          showCode ? "" : "overflow-auto p-4 sm:p-6"
-        } ${state.turnRunning ? "opacity-55" : ""}`}
       >
         {showVisual && sla && (
           <VisualBoundary resetKey={sla}>
@@ -93,7 +103,7 @@ export function OutputPane() {
           </VisualBoundary>
         )}
         {showCode && (
-          <Suspense fallback={<p className="p-4 text-sm text-muted-foreground">Loading the editor...</p>}>
+          <Suspense fallback={<EditorPlaceholder />}>
             <CodeView
               text={text}
               items={items}
@@ -108,7 +118,7 @@ export function OutputPane() {
         {!showCode && !showVisual && (
           <EmptyOutput turnRunning={state.turnRunning} hasSession={state.sessionId !== null} />
         )}
-      </div>
+      </ArtifactContent>
       <PendingDraftDialog />
     </Artifact>
   );

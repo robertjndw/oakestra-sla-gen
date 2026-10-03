@@ -95,6 +95,21 @@ describe("composerModel", () => {
     expect(typed.canSend).toBe(true);
     expect(typed.message).toContain("Also: use tls");
   });
+  it("makes Accept the primary action only when there is nothing else to send", () => {
+    const withDraft = { ...base, sessionId: "s", hasModelDraft: true };
+    expect(composerModel(withDraft).acceptPrimary).toBe(true);
+    expect(composerModel({ ...withDraft, text: "add tls" }).acceptPrimary).toBe(false);
+    expect(composerModel({ ...withDraft, turnRunning: true }).acceptPrimary).toBe(false);
+    expect(composerModel({ ...base, sessionId: "s" }).acceptPrimary).toBe(false);
+    const kept = [{ topic: "ports", question: "Which port?", assumption: "80" }];
+    expect(
+      composerModel({ ...withDraft, form: { questions: kept, answers: initialAnswers(kept) } }).acceptPrimary,
+    ).toBe(true);
+    // Question 2 has no assumption to keep, so it still needs an answer.
+    expect(
+      composerModel({ ...withDraft, form: { questions, answers: initialAnswers(questions) } }).acceptPrimary,
+    ).toBe(false);
+  });
   it("rejects oversized compose files", async () => {
     const big = new File(["a".repeat(64_001)], "big.yml");
     const res = await readInputFile(big);
@@ -129,9 +144,50 @@ describe("QuestionForm", () => {
     // Question 2 has no assumption, so it starts in answer mode.
     expect(screen.queryByLabelText("Answer to question 1")).toBeNull();
     expect(screen.getByLabelText("Answer to question 2")).toBeInTheDocument();
-    await user.click(screen.getByRole("radio", { name: "Answer" }));
+    await user.click(screen.getByRole("button", { name: "Change the assumption for question 1" }));
     await user.type(screen.getByLabelText("Answer to question 1"), "8080");
     expect(screen.getByRole("status", { hidden: true })).toHaveTextContent('"text":"8080"');
+  });
+  it("shows the assumption again when an empty answer box loses focus", async () => {
+    const user = userEvent.setup();
+    wrap(<Form />);
+    await user.click(screen.getByRole("button", { name: "Change the assumption for question 1" }));
+
+    await user.click(document.body);
+
+    expect(screen.queryByLabelText("Answer to question 1")).toBeNull();
+    expect(screen.getByRole("button", { name: "Change the assumption for question 1" })).toBeInTheDocument();
+  });
+  it("keeps a typed answer open when the box loses focus", async () => {
+    const user = userEvent.setup();
+    wrap(<Form />);
+    await user.click(screen.getByRole("button", { name: "Change the assumption for question 1" }));
+    await user.type(screen.getByLabelText("Answer to question 1"), "8080");
+
+    await user.click(document.body);
+
+    expect(screen.getByLabelText("Answer to question 1")).toHaveValue("8080");
+  });
+  it("lets keyboard users tab from an empty box to the keep link", async () => {
+    const user = userEvent.setup();
+    wrap(<Form />);
+    await user.click(screen.getByRole("button", { name: "Change the assumption for question 1" }));
+
+    await user.tab();
+
+    expect(screen.getByRole("button", { name: "Keep the assumption (80) instead" })).toHaveFocus();
+  });
+  it("goes back to the assumption and returns focus to Change", async () => {
+    const user = userEvent.setup();
+    wrap(<Form />);
+    await user.click(screen.getByRole("button", { name: "Change the assumption for question 1" }));
+    expect(screen.getByLabelText("Answer to question 1")).toHaveFocus();
+
+    await user.click(screen.getByRole("button", { name: "Keep the assumption (80) instead" }));
+
+    expect(screen.queryByLabelText("Answer to question 1")).toBeNull();
+    expect(screen.getByRole("button", { name: "Change the assumption for question 1" })).toHaveFocus();
+    expect(screen.getByRole("status", { hidden: true })).toHaveTextContent('"mode":"keep"');
   });
   it("renders a frozen form read-only", () => {
     wrap(
@@ -180,5 +236,12 @@ describe("Composer", () => {
     expect(screen.getByTestId("file-chip-name")).toHaveTextContent("my-sla.json");
     await user.click(screen.getByRole("button", { name: "Generate draft" }));
     expect(api.send).toHaveBeenCalledWith("", { name: "my-sla.json", text: sla, kind: "sla" });
+  });
+  it("removes the attached file", async () => {
+    const user = userEvent.setup();
+    wrap(<Harness api={fakeApi()} />);
+    await user.upload(screen.getByLabelText("Docker compose file or SLA"), new File(["services: {}"], "c.yml"));
+    await user.click(await screen.findByRole("button", { name: "Remove c.yml" }));
+    expect(screen.queryByTestId("file-chip-name")).toBeNull();
   });
 });

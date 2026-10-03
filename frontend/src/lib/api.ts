@@ -57,7 +57,6 @@ export const fetchInfo = () => api<Partial<Info> & ErrorBody>("GET", "/playgroun
 
 export const startSession = (settings: Settings, description: string, file?: InputFile | null) => {
   const body: Record<string, unknown> = {
-    method: settings.method,
     max_retries: settings.maxRetries,
     check_images: settings.checkImages,
     description,

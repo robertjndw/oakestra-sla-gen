@@ -15,7 +15,7 @@ export function AcceptedBar({
 }) {
   const copy = async () => {
     if (await copyText(sla)) toast.success("Copied the SLA JSON");
-    else toast.error("Could not copy. Select the JSON in the Code view instead.");
+    else toast.error("Could not copy the SLA JSON");
   };
   return (
     <Alert>

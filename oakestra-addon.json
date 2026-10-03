@@ -11,7 +11,8 @@
       "environment": {
         "OPENAI_BASE_URL": "http://172.17.0.1:1234/v1",
         "OPENAI_API_KEY": "lm-studio",
-        "OAKESTRA_SLA_MODEL": "qwen/qwen3.8-27b"
+        "OAKESTRA_SLA_MODEL": "qwen/qwen3.8-27b",
+        "OAKESTRA_SLA_METHOD": "prompt"
       }
     },
     {

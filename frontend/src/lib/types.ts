@@ -58,10 +58,7 @@ export interface GenerationFailureBody {
   session_id: string;
 }
 
-export type OutputMethod = "prompt" | "json_schema" | "function_calling";
-
 export interface Settings {
-  method: OutputMethod;
   maxRetries: number;
   customerId: string;
   checkImages: boolean;

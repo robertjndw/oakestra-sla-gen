@@ -10,8 +10,10 @@ import sys
 from .compose import ComposeError, compose_message
 from .existing_sla import ExistingSLAError, existing_sla_message, resolve_customer_id
 from .generator import (
+    DEFAULT_METHOD,
     DEFAULT_MODEL,
     DEFAULT_REASONING_EFFORT,
+    OUTPUT_METHODS,
     SLAGenerationError,
     SLASession,
     build_llm,
@@ -33,6 +35,25 @@ def _add_llm_arguments(parser: argparse.ArgumentParser) -> None:
         choices=["low", "medium", "high"],
         default=DEFAULT_REASONING_EFFORT,
     )
+    parser.add_argument(
+        "--method",
+        choices=OUTPUT_METHODS,
+        default=os.environ.get("OAKESTRA_SLA_METHOD", DEFAULT_METHOD),
+        help="How the model is asked for structured output. Depends on what the LLM server "
+        "supports; see the README.",
+    )
+
+
+def _parse_llm_args(parser: argparse.ArgumentParser, argv: list[str]) -> argparse.Namespace:
+    args = parser.parse_args(argv)
+    # argparse only checks `choices` for values given on the command line, so a typo in
+    # OAKESTRA_SLA_METHOD would otherwise surface much later as a confusing LLM error.
+    if args.method not in OUTPUT_METHODS:
+        parser.error(
+            f"invalid method {args.method!r} (from OAKESTRA_SLA_METHOD); "
+            f"choose from {', '.join(OUTPUT_METHODS)}"
+        )
+    return args
 
 
 def _llm_from_args(args: argparse.Namespace):
@@ -143,9 +164,6 @@ def _generate_command(argv: list[str]) -> int:
     )
     parser.add_argument("-o", "--output", help="Write the verified SLA here instead of stdout.")
     _add_llm_arguments(parser)
-    parser.add_argument(
-        "--method", choices=["prompt", "json_schema", "function_calling"], default="prompt"
-    )
     parser.add_argument("--max-retries", type=int, default=3)
     parser.add_argument(
         "--customer-id",
@@ -164,7 +182,7 @@ def _generate_command(argv: list[str]) -> int:
     parser.add_argument(
         "-v", "--verbose", action="store_true", help="Log each attempt and its errors to stderr."
     )
-    args = parser.parse_args(argv)
+    args = _parse_llm_args(parser, argv)
 
     text = _read_text_arg(args)
     sla_text = None
@@ -265,7 +283,7 @@ def _serve_command(argv: list[str]) -> int:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
     _add_llm_arguments(parser)
-    args = parser.parse_args(argv)
+    args = _parse_llm_args(parser, argv)
 
     # Imported here so the CLI keeps working when the `server` extra isn't installed.
     try:
@@ -287,6 +305,7 @@ def _serve_command(argv: list[str]) -> int:
     app = create_app(
         functools.cache(lambda method: build_structured_llm(llm, method=method)),
         model=args.model,
+        default_method=args.method,
     )
     uvicorn.run(app, host=args.host, port=args.port)
     return 0

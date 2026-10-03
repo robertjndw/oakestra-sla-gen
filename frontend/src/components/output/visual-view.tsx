@@ -1,4 +1,6 @@
+import { OctagonAlertIcon, TriangleAlertIcon } from "lucide-react";
 import { lazy, Suspense, useMemo } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { findLinks, ipTargets, services } from "@/lib/sla";
 import type { Sla } from "@/lib/types";
 import { buildMarks } from "./marks";
@@ -42,20 +44,28 @@ export function VisualView({ sla, previous, errors, parseError }: Props) {
   return (
     <div className="space-y-4">
       {parseError && (
-        <p className="rounded-lg bg-amber-soft px-3 py-2 text-sm text-foreground" role="status">
-          The JSON in Code has a syntax error, so this shows the last version that parsed.
-        </p>
+        <Alert variant="warning" role="status">
+          <TriangleAlertIcon />
+          <AlertDescription>
+            The JSON in Code has a syntax error, so this shows the last version that parsed.
+          </AlertDescription>
+        </Alert>
       )}
       <div className="space-y-1">
         <p className="text-base font-medium">{summarize(sla, list)}</p>
         {description && <p className="text-sm text-muted-foreground">{description}</p>}
       </div>
       {problems.global.length > 0 && (
-        <ul className="list-disc space-y-0.5 rounded-lg bg-rust-soft py-2 pr-3 pl-7 text-sm text-rust">
-          {problems.global.map((g, i) => (
-            <li key={i}>{g}</li>
-          ))}
-        </ul>
+        <Alert variant="danger" role="status">
+          <OctagonAlertIcon />
+          <AlertDescription>
+            <ul className="list-disc space-y-0.5 pl-4">
+              {problems.global.map((g, i) => (
+                <li key={i}>{g}</li>
+              ))}
+            </ul>
+          </AlertDescription>
+        </Alert>
       )}
       {list.length > 0 && (
         <div className="space-y-2">

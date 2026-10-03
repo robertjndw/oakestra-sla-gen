@@ -201,6 +201,40 @@ def test_sla_flag_with_invalid_json_exits_2(monkeypatch, tmp_path, capsys):
     assert "invalid JSON" in capsys.readouterr().err
 
 
+@pytest.mark.parametrize(
+    ("env", "flags", "expected"),
+    [
+        (None, [], "prompt"),
+        ("json_schema", [], "json_schema"),
+        ("json_schema", ["--method", "function_calling"], "function_calling"),
+    ],
+)
+def test_method_comes_from_the_environment_unless_given(monkeypatch, env, flags, expected):
+    if env is None:
+        monkeypatch.delenv("OAKESTRA_SLA_METHOD", raising=False)
+    else:
+        monkeypatch.setenv("OAKESTRA_SLA_METHOD", env)
+    seen = {}
+    fake = FakeSession([Draft(sla=_NGINX_SLA, questions=[])])
+    monkeypatch.setattr(cli, "SLASession", lambda **kwargs: seen.update(kwargs) or fake)
+
+    code = cli._generate_command(["nginx", "--no-interactive", *flags])
+
+    assert code == 0
+    assert seen["method"] == expected
+
+
+def test_invalid_method_in_the_environment_is_a_usage_error(monkeypatch, capsys):
+    monkeypatch.setenv("OAKESTRA_SLA_METHOD", "jsonschema")
+    _patch_session(monkeypatch, [])
+
+    with pytest.raises(SystemExit) as exit_info:
+        cli._generate_command(["nginx", "--no-interactive"])
+
+    assert exit_info.value.code == 2
+    assert "OAKESTRA_SLA_METHOD" in capsys.readouterr().err
+
+
 def test_sla_and_compose_flags_are_mutually_exclusive():
     with pytest.raises(SystemExit):
         cli._generate_command(["--sla", "a.json", "--compose", "b.yaml"])

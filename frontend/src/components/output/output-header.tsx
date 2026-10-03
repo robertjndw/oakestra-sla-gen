@@ -25,13 +25,15 @@ export interface HeaderProps {
   onModeChange: (mode: OutputMode) => void;
 }
 
-function badgeFor(p: Pick<HeaderProps, "validation" | "accepted" | "edited">): { label: string; className: string } {
+type BadgeVariant = "default" | "success" | "warning" | "danger";
+
+function badgeFor(p: Pick<HeaderProps, "validation" | "accepted" | "edited">): { label: string; variant: BadgeVariant } {
   const { status, errors } = p.validation;
-  if (status === "parse-error") return { label: "Invalid JSON", className: "bg-rust-soft text-rust" };
-  if (status === "invalid") return { label: plural(errors.length, "problem"), className: "bg-rust-soft text-rust" };
-  if (status === "checking") return { label: "Checking", className: "bg-amber-soft text-amber" };
-  if (p.accepted && !p.edited) return { label: "Accepted", className: "bg-primary text-primary-foreground" };
-  return { label: p.edited ? "Valid" : "Passed validation", className: "bg-accent text-accent-foreground" };
+  if (status === "parse-error") return { label: "Invalid JSON", variant: "danger" };
+  if (status === "invalid") return { label: plural(errors.length, "problem"), variant: "danger" };
+  if (status === "checking") return { label: "Checking", variant: "warning" };
+  if (p.accepted && !p.edited) return { label: "Accepted", variant: "default" };
+  return { label: p.edited ? "Valid" : "Passed validation", variant: "success" };
 }
 
 export function OutputHeader(props: HeaderProps) {
@@ -40,8 +42,8 @@ export function OutputHeader(props: HeaderProps) {
   const badge = badgeFor(props);
 
   async function copy() {
-    if (await copyText(text)) toast.success("Copied the SLA to the clipboard");
-    else toast.error("Could not copy the SLA");
+    if (await copyText(text)) toast.success("Copied the SLA JSON");
+    else toast.error("Could not copy the SLA JSON");
   }
 
   return (
@@ -51,7 +53,7 @@ export function OutputHeader(props: HeaderProps) {
           {titleFor(props)}
         </ArtifactTitle>
         {hasText && (
-          <Badge className={badge.className} aria-live="polite" data-status={validation.status}>
+          <Badge variant={badge.variant} aria-live="polite" data-status={validation.status}>
             {badge.label}
           </Badge>
         )}

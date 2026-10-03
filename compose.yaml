@@ -7,6 +7,7 @@ services:
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-http://host.docker.internal:1234/v1}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-lm-studio}
       OAKESTRA_SLA_MODEL: ${OAKESTRA_SLA_MODEL:-qwen/qwen3.8-27b}
+      OAKESTRA_SLA_METHOD: ${OAKESTRA_SLA_METHOD:-prompt}
     # Docker Desktop resolves host.docker.internal on its own; on Linux it needs this mapping.
     extra_hosts:
       - "host.docker.internal:host-gateway"

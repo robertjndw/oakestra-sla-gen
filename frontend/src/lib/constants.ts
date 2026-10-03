@@ -14,14 +14,11 @@ export const MIN_RETRIES = 1;
 export const MAX_RETRIES = 10;
 
 export const DEFAULT_SETTINGS: Settings = {
-  method: "prompt",
   maxRetries: 3,
   // Empty means "not chosen": the server keeps an uploaded SLA's own ID, otherwise uses Admin.
   customerId: "",
   checkImages: true,
 };
-
-export const OUTPUT_METHODS = ["prompt", "json_schema", "function_calling"] as const;
 
 export const EXAMPLE_PROMPTS: { text: string; note?: string }[] = [
   { text: "A single nginx web server on port 80 with 1 CPU and 512 MB of memory" },

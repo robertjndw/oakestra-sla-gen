@@ -1,4 +1,6 @@
+import { OctagonAlertIcon } from "lucide-react";
 import { Component, type ReactNode } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface Props {
   /** The SLA being drawn; a new one gets another try. */
@@ -30,10 +32,13 @@ export class VisualBoundary extends Component<Props, State> {
   render() {
     if (this.state.failed) {
       return (
-        <p className="rounded-lg bg-rust-soft px-3 py-2 text-sm text-rust" role="status">
-          This SLA can't be drawn because some fields have an unexpected shape. Fix it in the Code
-          view.
-        </p>
+        <Alert variant="danger" role="status">
+          <OctagonAlertIcon />
+          <AlertDescription>
+            This SLA can't be drawn because some fields have an unexpected shape. Fix it in the Code
+            view.
+          </AlertDescription>
+        </Alert>
       );
     }
     return this.props.children;

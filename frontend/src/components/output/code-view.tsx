@@ -8,7 +8,7 @@ import { ProblemsList } from "./problems-list";
 import type { ProblemItem } from "./problems";
 import { toDiagnostics } from "./problems";
 import { jsonTokenColors } from "./syntax-plugin";
-import { useIsDark } from "./use-is-dark";
+import { useIsDark } from "@/hooks/use-is-dark";
 import "./output.css";
 
 interface Props {

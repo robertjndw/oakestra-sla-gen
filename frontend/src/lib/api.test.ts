@@ -39,7 +39,6 @@ describe("api", () => {
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe("/api/playground/sessions");
     expect(JSON.parse(init.body)).toEqual({
-      method: "prompt",
       max_retries: 3,
       check_images: true,
       description: "desc",
