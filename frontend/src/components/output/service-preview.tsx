@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { joinWords, plural } from "@/lib/format";
-import { describePlacement, describeResources, fieldLabel, parsePorts, portLabel } from "@/lib/sla";
+import { describePlacement, describeResources, fieldLabel, parsePorts, portLabel, serviceName } from "@/lib/sla";
 import type { ServiceLink } from "@/lib/sla";
 import type { ServiceEntry } from "@/lib/types";
 import type { ServiceMark } from "./marks";
@@ -15,8 +15,6 @@ interface Props {
 
 // Enough to tell what is wrong at a glance; the card below the map has the full list.
 const MAX_ERRORS = 2;
-
-const nameOf = (s: ServiceEntry) => s.ms.microservice_name || "unnamed";
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -31,15 +29,15 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 export function ServicePreview({ service: s, mark, links }: Props) {
   const ms = s.ms;
   const ports = parsePorts(ms.port);
-  const calls = links.filter((l) => l.from === s).map((l) => nameOf(l.to));
-  const calledBy = links.filter((l) => l.to === s).map((l) => nameOf(l.from));
+  const calls = links.filter((l) => l.from === s).map((l) => serviceName(l.to));
+  const calledBy = links.filter((l) => l.to === s).map((l) => serviceName(l.from));
   const env = ms.environment ?? [];
   const placement = describePlacement(ms);
 
   return (
     <div className="space-y-3">
       <div className="space-y-0.5">
-        <p className="font-semibold break-words">{nameOf(s)}</p>
+        <p className="font-semibold break-words">{serviceName(s)}</p>
         {ms.microservice_namespace && (
           <p className="text-xs text-muted-foreground">namespace {ms.microservice_namespace}</p>
         )}
@@ -101,7 +99,7 @@ export function OutsidePreview({ exposed }: { exposed: ServiceEntry[] }) {
       <p className="font-semibold">Open to the outside</p>
       <dl className="grid grid-cols-[minmax(0,auto)_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs">
         {exposed.map((s, i) => (
-          <Row key={i} label={nameOf(s)}>
+          <Row key={i} label={serviceName(s)}>
             <span className="font-mono">{parsePorts(s.ms.port).map(portLabel).join(", ")}</span>
           </Row>
         ))}

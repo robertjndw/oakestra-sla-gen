@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import { HISTORY_SAVE_DEBOUNCE_MS, HISTORY_STORAGE_KEY } from "@/lib/constants";
-import { readHistory, titleFrom, upsertEntry, writeHistory, type HistoryEntry } from "@/lib/history";
+import { parseHistory, readRawHistory, titleFrom, upsertEntry, writeHistory, type HistoryEntry } from "@/lib/history";
 import type { SessionState } from "./use-session";
 
 // localStorage is the store itself, so other tabs' writes show up too. Reading it means pulling
@@ -11,20 +11,12 @@ let lastRaw: string | null | undefined;
 let lastEntries: HistoryEntry[] = [];
 const listeners = new Set<() => void>();
 
-function rawHistory(): string | null {
-  try {
-    return localStorage.getItem(HISTORY_STORAGE_KEY);
-  } catch {
-    return null;
-  }
-}
-
 // Memoized on the raw string because useSyncExternalStore needs a stable snapshot.
 function refresh(): HistoryEntry[] {
-  const raw = rawHistory();
+  const raw = readRawHistory();
   if (raw !== lastRaw) {
     lastRaw = raw;
-    lastEntries = readHistory();
+    lastEntries = parseHistory(raw);
   }
   return lastEntries;
 }

@@ -1,5 +1,5 @@
 import { HISTORY_STORAGE_KEY, MAX_HISTORY_ENTRIES } from "./constants";
-import { readStored, removeStored, writeStored } from "./storage";
+import { isObject, parseStored, readRaw, removeStored, writeStored } from "./storage";
 
 /** One past session's SLA. Only the SLA is kept: the conversation can't be resumed anyway,
  * because the server forgets sessions after an hour. */
@@ -21,31 +21,27 @@ interface StoredHistory {
   entries: HistoryEntry[];
 }
 
-const isEntry = (v: unknown): v is HistoryEntry => {
-  if (typeof v !== "object" || v === null) return false;
-  const e = v as Record<string, unknown>;
-  return (
-    typeof e.id === "string" &&
-    typeof e.title === "string" &&
-    typeof e.savedAt === "number" &&
-    typeof e.sla === "string" &&
-    typeof e.accepted === "boolean"
-  );
-};
+const isEntry = (v: unknown): v is HistoryEntry =>
+  isObject(v) &&
+  typeof v.id === "string" &&
+  typeof v.title === "string" &&
+  typeof v.savedAt === "number" &&
+  typeof v.sla === "string" &&
+  typeof v.accepted === "boolean";
 
 const isStoredHistory = (v: unknown): v is StoredHistory =>
-  typeof v === "object" &&
-  v !== null &&
-  (v as StoredHistory).version === HISTORY_VERSION &&
-  Array.isArray((v as StoredHistory).entries) &&
-  (v as StoredHistory).entries.every(isEntry);
+  isObject(v) && v.version === HISTORY_VERSION && Array.isArray(v.entries) && v.entries.every(isEntry);
 
 const EMPTY: StoredHistory = { version: HISTORY_VERSION, entries: [] };
 
 /** Newest first. Never throws. */
-export function readHistory(): HistoryEntry[] {
-  return readStored("local", HISTORY_STORAGE_KEY, EMPTY, isStoredHistory).entries;
+export function parseHistory(raw: string | null): HistoryEntry[] {
+  return parseStored(raw, EMPTY, isStoredHistory).entries;
 }
+
+export const readRawHistory = () => readRaw("local", HISTORY_STORAGE_KEY);
+
+export const readHistory = () => parseHistory(readRawHistory());
 
 /**
  * Saves the list, dropping the oldest entries until it fits the storage quota. Leaves storage

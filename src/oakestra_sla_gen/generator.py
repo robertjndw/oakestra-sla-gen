@@ -10,7 +10,7 @@ from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.runnables import RunnableLambda, RunnableMap, RunnablePassthrough
 from langchain_openai import ChatOpenAI
 
-from .models import Clarification, SLARequest
+from .models import DEFAULT_CUSTOMER_ID, Clarification, SLARequest
 from .prompts import CORRECTION_TEMPLATE, SYSTEM_PROMPT
 from .registry import image_exists
 from .validation import iter_microservices, validate_sla
@@ -251,7 +251,7 @@ class SLASession:
         llm: ChatOpenAI | None = None,
         structured_llm=None,
         method: str = DEFAULT_METHOD,
-        customer_id: str = "Admin",
+        customer_id: str = DEFAULT_CUSTOMER_ID,
         max_retries: int = 3,
         check_images: bool = True,
         on_attempt=None,
@@ -346,7 +346,7 @@ def generate_sla(
     structured_llm=None,
     llm: ChatOpenAI | None = None,
     method: str = DEFAULT_METHOD,
-    customer_id: str = "Admin",
+    customer_id: str = DEFAULT_CUSTOMER_ID,
     max_retries: int = 3,
     check_images: bool = True,
     on_attempt=None,

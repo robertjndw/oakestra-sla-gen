@@ -14,7 +14,7 @@ import { Controls } from "@/components/ai-elements/controls";
 import { Node, NodeContent } from "@/components/ai-elements/node";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { plural } from "@/lib/format";
-import { parsePorts, shortImage } from "@/lib/sla";
+import { parsePorts, serviceName, shortImage } from "@/lib/sla";
 import type { ServiceLink } from "@/lib/sla";
 import type { ServiceEntry } from "@/lib/types";
 import { focusService } from "./focus-service";
@@ -152,19 +152,10 @@ function EdgeLabel({
   );
 }
 
-function LinkEdge(props: EdgeProps) {
+function ServiceEdge(props: EdgeProps) {
+  const port = props.type === "port";
   // Not Edge.Animated: its dot loops forever and ignores prefers-reduced-motion.
-  const [path, x, y] = getBezierPath({ ...props, sourcePosition: Position.Right, targetPosition: Position.Left });
-  return (
-    <>
-      <BaseEdge id={props.id} path={path} markerEnd={props.markerEnd} style={props.style} />
-      <EdgeLabel x={x} y={y} text={String(props.label ?? "")} dimmed={!!props.data?.dimmed} />
-    </>
-  );
-}
-
-function PortEdge(props: EdgeProps) {
-  const [path, x, y] = getSimpleBezierPath({
+  const [path, x, y] = (port ? getSimpleBezierPath : getBezierPath)({
     ...props,
     sourcePosition: Position.Right,
     targetPosition: Position.Left,
@@ -172,13 +163,13 @@ function PortEdge(props: EdgeProps) {
   return (
     <>
       <BaseEdge id={props.id} path={path} markerEnd={props.markerEnd} style={props.style} />
-      <EdgeLabel x={x} y={y} text={String(props.label ?? "")} port dimmed={!!props.data?.dimmed} />
+      <EdgeLabel x={x} y={y} text={String(props.label ?? "")} port={port} dimmed={!!props.data?.dimmed} />
     </>
   );
 }
 
 const nodeTypes = { service: ServiceNode, outside: OutsideNode };
-const edgeTypes = { link: LinkEdge, port: PortEdge };
+const edgeTypes = { link: ServiceEdge, port: ServiceEdge };
 
 interface Props {
   list: ServiceEntry[];
@@ -207,14 +198,11 @@ export function ServiceMap({ list, links, marks }: Props) {
         id: serviceId(s),
         type: "service",
         position: layout.positions[serviceId(s)],
-        draggable: false,
-        connectable: false,
-        selectable: false,
         data: {
           entry: s,
           mark: mk,
           links,
-          name: s.ms.microservice_name || "unnamed",
+          name: serviceName(s),
           image: shortImage(s.ms.code),
           flag,
         },
@@ -225,9 +213,6 @@ export function ServiceMap({ list, links, marks }: Props) {
         id: "outside",
         type: "outside",
         position: layout.outside,
-        draggable: false,
-        connectable: false,
-        selectable: false,
         data: {
           exposed: list.filter((s) => layout.exposed.includes(serviceId(s))),
         },

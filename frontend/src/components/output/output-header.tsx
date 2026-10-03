@@ -1,5 +1,4 @@
 import { CopyIcon, DownloadIcon } from "lucide-react";
-import { toast } from "sonner";
 import {
   ArtifactAction,
   ArtifactActions,
@@ -8,7 +7,7 @@ import {
 } from "@/components/ai-elements/artifact";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { copyText, downloadText } from "@/lib/file-actions";
+import { copySla, downloadSla } from "@/lib/file-actions";
 import { plural } from "@/lib/format";
 import type { ValidationResult } from "@/hooks/use-validation";
 import { isOutputMode, titleFor } from "./output-mode";
@@ -43,11 +42,6 @@ export function OutputHeader(props: HeaderProps) {
   const hasText = text.trim() !== "";
   const badge = badgeFor(props);
 
-  async function copy() {
-    if (await copyText(text)) toast.success("Copied the SLA JSON");
-    else toast.error("Could not copy the SLA JSON");
-  }
-
   return (
     <ArtifactHeader className="flex-wrap gap-y-2">
       <div className="flex min-w-0 items-center gap-2">
@@ -68,13 +62,13 @@ export function OutputHeader(props: HeaderProps) {
           </TabsList>
         </Tabs>
         <ArtifactActions>
-          <ArtifactAction tooltip="Copy" label="Copy the SLA" icon={CopyIcon} disabled={!hasText} onClick={copy} />
+          <ArtifactAction tooltip="Copy" label="Copy the SLA" icon={CopyIcon} disabled={!hasText} onClick={() => void copySla(text)} />
           <ArtifactAction
             tooltip="Download sla.json"
             label="Download sla.json"
             icon={DownloadIcon}
             disabled={!hasText}
-            onClick={() => downloadText(text, "sla.json")}
+            onClick={() => downloadSla(text)}
           />
         </ArtifactActions>
       </div>

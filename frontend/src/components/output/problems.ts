@@ -16,6 +16,9 @@ export interface EditorDiagnostic {
   message: string;
 }
 
+// A fresh [] per keystroke would make CodeView re-dispatch diagnostics every time.
+const NO_ITEMS: ProblemItem[] = [];
+
 /** One entry per problem for the list under the editor; a syntax error replaces the server's. */
 export function problemItems(
   text: string,
@@ -23,7 +26,7 @@ export function problemItems(
   parseError: ParseError | null,
 ): ProblemItem[] {
   if (parseError) return [{ line: parseError.line, path: "", message: parseError.message }];
-  if (!errors.length) return [];
+  if (!errors.length) return NO_ITEMS;
   const map = lineIndex(text);
   return errors.map((e) => {
     const { path, message } = splitProblem(e);

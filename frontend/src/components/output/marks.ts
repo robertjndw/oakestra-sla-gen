@@ -20,7 +20,7 @@ export function buildMarks(
   const marks: Record<string, ServiceMark> = {};
   for (const s of list) {
     marks[s.key] = {
-      added: !!previous && diff.added.includes(s.key),
+      added: diff.added.includes(s.key),
       changed: (diff.changed[s.key] ?? []).map((c) => c.field),
       errors: problems.by[`${s.ai}/${s.mi}`] ?? [],
     };

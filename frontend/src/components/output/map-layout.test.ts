@@ -69,6 +69,6 @@ describe("computeMapLayout", () => {
   });
 
   it("handles an empty list", () => {
-    expect(computeMapLayout([], [])).toMatchObject({ width: 0, height: 0, outside: null });
+    expect(computeMapLayout([], [])).toMatchObject({ height: 0, outside: null });
   });
 });

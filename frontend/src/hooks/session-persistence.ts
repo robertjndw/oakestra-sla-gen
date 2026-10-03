@@ -1,12 +1,13 @@
-import { useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import {
   DEFAULT_SETTINGS,
   MAX_RETRIES,
   MIN_RETRIES,
+  SESSION_SAVE_DEBOUNCE_MS,
   SESSION_STORAGE_KEY,
   SETTINGS_STORAGE_KEY,
 } from "@/lib/constants";
-import { readStored, removeStored, writeStored } from "@/lib/storage";
+import { isObject, readStored, removeStored, writeStored } from "@/lib/storage";
 import type { Settings } from "@/lib/types";
 import { initialState, type RestoredInput, type Round, type SessionState } from "./use-session";
 
@@ -34,7 +35,6 @@ export interface SessionSnapshot extends PersistedFields {
   version: typeof SNAPSHOT_VERSION;
 }
 
-const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
 const isObjectOrNull = (v: unknown) => v === null || isObject(v);
 
 export function isSettings(v: unknown): v is Settings {
@@ -63,8 +63,7 @@ function isSnapshot(v: unknown): v is SessionSnapshot {
     typeof v.editedSla === "string" &&
     typeof v.baselineText === "string" &&
     typeof v.accepted === "boolean" &&
-    // Added without a version bump, so snapshots from before the history still restore.
-    (v.historySeed === undefined || v.historySeed === null || typeof v.historySeed === "string") &&
+    (v.historySeed === null || typeof v.historySeed === "string") &&
     typeof v.nextId === "number"
   );
 }
@@ -95,8 +94,7 @@ export function toSnapshot(s: SessionState): SessionSnapshot | null {
  * into the composer because the server never confirmed a session for it.
  */
 export function fromSnapshot(snap: SessionSnapshot, storedSettings: Settings): SessionState {
-  const { version: _version, ...rest } = snap;
-  const fields = { ...rest, historySeed: rest.historySeed ?? null };
+  const { version: _version, ...fields } = snap;
   const pendingIdx = fields.rounds.findIndex((r) => r.kind === "pending");
   if (pendingIdx === -1) {
     return {
@@ -160,12 +158,31 @@ export function usePersistSession(state: SessionState): void {
     writeStored("local", SETTINGS_STORAGE_KEY, settings);
   }, [settings]);
 
-  useEffect(() => {
-    const snap = toSnapshot(state);
+  // Debounced because the snapshot carries every draft, too much to stringify per keystroke.
+  const pending = useRef<SessionState | null>(null);
+  const flush = useCallback(() => {
+    const s = pending.current;
+    pending.current = null;
+    if (!s) return;
+    const snap = toSnapshot(s);
     // A failed write (full quota) must not leave an older snapshot behind: a reload would bring
     // back a conversation that no longer matches the server's session.
     if (!snap || !writeStored("session", SESSION_STORAGE_KEY, snap)) {
       removeStored("session", SESSION_STORAGE_KEY);
     }
-  }, [state]);
+  }, []);
+
+  useEffect(() => {
+    pending.current = state;
+    const timer = setTimeout(flush, SESSION_SAVE_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [state, flush]);
+
+  useEffect(() => {
+    window.addEventListener("pagehide", flush);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      flush();
+    };
+  }, [flush]);
 }

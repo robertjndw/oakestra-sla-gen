@@ -16,6 +16,9 @@ export const MAX_HISTORY_ENTRIES = 20;
 /** Hand edits are saved to the history once typing pauses, not on every keystroke. */
 export const HISTORY_SAVE_DEBOUNCE_MS = 1000;
 
+/** The session snapshot is also flushed on pagehide, so a reload doesn't lose the last edits. */
+export const SESSION_SAVE_DEBOUNCE_MS = 300;
+
 export const VALIDATE_DEBOUNCE_MS = 400;
 
 export const API_PREFIX = "/api";

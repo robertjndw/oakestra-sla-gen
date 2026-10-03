@@ -47,6 +47,8 @@ export interface ServiceLink {
   label: string;
 }
 
+export const serviceName = (s: ServiceEntry): string => s.ms.microservice_name || "unnamed";
+
 export function shortImage(ref: unknown): string {
   return String(ref || "").replace(/^(index\.)?docker\.io\/(library\/)?/, "");
 }

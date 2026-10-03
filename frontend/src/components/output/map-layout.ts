@@ -18,7 +18,6 @@ export interface MapLayout {
   outside: { x: number; y: number } | null;
   /** Ids of services that open ports, in list order. */
   exposed: string[];
-  width: number;
   height: number;
 }
 
@@ -48,7 +47,7 @@ export function computeMapLayout(list: ServiceEntry[], links: ServiceLink[]): Ma
   const columns: ServiceEntry[][] = [];
   for (const s of list) (columns[depthOf(s, [])] ??= []).push(s);
   const dense = columns.filter(Boolean);
-  if (!dense.length) return { positions: {}, outside: null, exposed, width: 0, height: 0 };
+  if (!dense.length) return { positions: {}, outside: null, exposed, height: 0 };
 
   const tallest = Math.max(...dense.map((c) => c.length));
   const height = PAD * 2 + tallest * NODE_H + (tallest - 1) * GAP_Y;
@@ -62,12 +61,10 @@ export function computeMapLayout(list: ServiceEntry[], links: ServiceLink[]): Ma
       positions[serviceId(s)] = { x: x0 + ci * (NODE_W + GAP_X), y: top + ri * (NODE_H + GAP_Y) };
     });
   });
-  const width = x0 + dense.length * NODE_W + (dense.length - 1) * GAP_X + PAD;
   return {
     positions,
     outside: hasOutside ? { x: PAD, y: (height - OUTSIDE_H) / 2 } : null,
     exposed,
-    width,
     height,
   };
 }

@@ -1,21 +1,11 @@
 import { useMemo, useState } from "react";
 import { CopyIcon, DownloadIcon, HistoryIcon, Trash2Icon } from "lucide-react";
-import { toast } from "sonner";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useSessionContext } from "@/hooks/session-context";
 import { clearHistory, removeFromHistory, useHistoryEntries } from "@/hooks/use-history";
-import { copyText, downloadText } from "@/lib/file-actions";
+import { copySla, downloadSla } from "@/lib/file-actions";
 import { plural } from "@/lib/format";
 import type { HistoryEntry } from "@/lib/history";
 import { services } from "@/lib/sla";
@@ -48,9 +38,11 @@ export function HistoryPopover() {
   const [open, setOpen] = useState(false);
   const [confirmEntry, setConfirmEntry] = useState<HistoryEntry | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
+  // metaLine parses every saved SLA and the history changes on every save, so only do it
+  // while the list is actually visible.
   const rows = useMemo(
-    () => entries.map((e) => ({ entry: e, meta: metaLine(e, e.id === state.sessionId) })),
-    [entries, state.sessionId],
+    () => (open ? entries.map((e) => ({ entry: e, meta: metaLine(e, e.id === state.sessionId) })) : []),
+    [open, entries, state.sessionId],
   );
 
   const pick = (entry: HistoryEntry) => {
@@ -58,11 +50,6 @@ export function HistoryPopover() {
     if (entry.id === state.sessionId) return;
     if (hasUnacceptedWork) setConfirmEntry(entry);
     else openFromHistory(entry);
-  };
-
-  const copy = async (entry: HistoryEntry) => {
-    if (await copyText(entry.sla)) toast.success("Copied the SLA JSON");
-    else toast.error("Could not copy the SLA JSON");
   };
 
   return (
@@ -105,7 +92,7 @@ export function HistoryPopover() {
                       variant="ghost"
                       size="icon-sm"
                       aria-label={`Copy ${entry.title}`}
-                      onClick={() => void copy(entry)}
+                      onClick={() => void copySla(entry.sla)}
                     >
                       <CopyIcon />
                     </Button>
@@ -114,7 +101,7 @@ export function HistoryPopover() {
                       variant="ghost"
                       size="icon-sm"
                       aria-label={`Download ${entry.title}`}
-                      onClick={() => downloadText(entry.sla, "sla.json")}
+                      onClick={() => downloadSla(entry.sla)}
                     >
                       <DownloadIcon />
                     </Button>
@@ -141,37 +128,27 @@ export function HistoryPopover() {
         </PopoverContent>
       </Popover>
 
-      <AlertDialog open={confirmEntry !== null} onOpenChange={(o) => !o && setConfirmEntry(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Open this SLA?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {state.modelSla
-                ? "This ends the current conversation. Its latest draft stays in the history."
-                : "This clears the current conversation."}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => confirmEntry && openFromHistory(confirmEntry)}>Open</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={confirmEntry !== null}
+        onOpenChange={(o) => !o && setConfirmEntry(null)}
+        title="Open this SLA?"
+        description={
+          state.modelSla
+            ? "This ends the current conversation. Its latest draft stays in the history."
+            : "This clears the current conversation."
+        }
+        actionLabel="Open"
+        onConfirm={() => confirmEntry && openFromHistory(confirmEntry)}
+      />
 
-      <AlertDialog open={confirmClear} onOpenChange={setConfirmClear}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Clear the history?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {`This deletes ${plural(entries.length, "saved SLA")} from this browser. It can't be undone.`}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={clearHistory}>Clear</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={confirmClear}
+        onOpenChange={setConfirmClear}
+        title="Clear the history?"
+        description={`This deletes ${plural(entries.length, "saved SLA")} from this browser. It can't be undone.`}
+        actionLabel="Clear"
+        onConfirm={clearHistory}
+      />
     </>
   );
 }

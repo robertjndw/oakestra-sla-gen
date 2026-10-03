@@ -1,5 +1,6 @@
 import { formatAnswers, type QuestionAnswer } from "@/lib/answers";
 import { MAX_UPLOAD_CHARS } from "@/lib/constants";
+import { isObject } from "@/lib/storage";
 import type { Clarification, InputFile, InputFileKind } from "@/lib/types";
 
 export interface ActiveForm {
@@ -79,7 +80,7 @@ export function detectKind(name: string, text: string): InputFileKind {
   } catch {
     return /\.json$/i.test(name) ? "sla" : "compose";
   }
-  if (data === null || typeof data !== "object" || Array.isArray(data)) return "compose";
+  if (!isObject(data) || Array.isArray(data)) return "compose";
   return "services" in data ? "compose" : "sla";
 }
 

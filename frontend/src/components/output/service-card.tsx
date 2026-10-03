@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { joinWords, plural } from "@/lib/format";
-import { describePlacement, describeResources, parsePorts, portLabel, splitEnv } from "@/lib/sla";
+import { describePlacement, describeResources, parsePorts, portLabel, serviceName, splitEnv } from "@/lib/sla";
 import type { IpTarget, ServiceLink } from "@/lib/sla";
 import type { ServiceEntry } from "@/lib/types";
 import { focusService } from "./focus-service";
@@ -62,7 +62,7 @@ export function ServiceCard({ service: s, mark, links, targets }: Props) {
   const ms = s.ms;
   const has = (...fields: string[]) => fields.some((f) => mark.changed.includes(f));
   const ports = parsePorts(ms.port);
-  const users = links.filter((l) => l.to === s).map((l) => l.from.ms.microservice_name ?? "unnamed");
+  const users = links.filter((l) => l.to === s).map((l) => serviceName(l.from));
 
   return (
     <Card
@@ -72,7 +72,7 @@ export function ServiceCard({ service: s, mark, links, targets }: Props) {
     >
       <CardHeader className="gap-1.5 px-4">
         <div className="flex flex-wrap items-center gap-2">
-          <CardTitle className="text-base">{ms.microservice_name || "unnamed"}</CardTitle>
+          <CardTitle className="text-base">{serviceName(s)}</CardTitle>
           {ms.microservice_namespace && (
             <span className="text-xs text-muted-foreground">namespace {ms.microservice_namespace}</span>
           )}
@@ -146,7 +146,7 @@ export function ServiceCard({ service: s, mark, links, targets }: Props) {
                               className="ml-2 rounded text-primary underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                               onClick={() => focusService(t.target)}
                             >
-                              reaches {t.target.ms.microservice_name}
+                              reaches {serviceName(t.target)}
                             </button>
                           ))}
                       </span>

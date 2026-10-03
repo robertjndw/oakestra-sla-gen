@@ -1,3 +1,5 @@
+import { toast } from "sonner";
+
 function copyWithFallback(text: string): boolean {
   const ta = document.createElement("textarea");
   ta.value = text;
@@ -38,3 +40,12 @@ export function downloadText(text: string, filename: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+
+export async function copySla(text: string) {
+  if (await copyText(text)) toast.success("Copied the SLA JSON");
+  else toast.error("Could not copy the SLA JSON");
+}
+
+export function downloadSla(text: string) {
+  downloadText(text, "sla.json");
+}

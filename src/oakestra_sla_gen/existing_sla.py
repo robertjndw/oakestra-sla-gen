@@ -2,13 +2,13 @@
 
 import json
 
-from .models import Addresses, Application, Microservice
+from .compose import MAX_COMPOSE_CHARS
+from .models import DEFAULT_CUSTOMER_ID, Addresses, Application, Microservice
 from .prompts import EXISTING_SLA_TEMPLATE
 from .validation import validate_sla
 
 # Same budget as a compose file: plenty for a real SLA, small enough to keep the prompt sane.
-MAX_SLA_CHARS = 64_000
-DEFAULT_CUSTOMER_ID = "Admin"
+MAX_SLA_CHARS = MAX_COMPOSE_CHARS
 
 _TOP_LEVEL_FIELDS = {"sla_version", "customerID", "applications"}
 # IDs are assigned by Oakestra and blanked again by `to_oakestra_sla`, so they aren't lost.

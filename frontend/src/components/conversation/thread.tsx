@@ -23,7 +23,16 @@ interface Props {
   onPickExample: (text: string) => void;
 }
 
-export function Thread({ rounds, onPickExample, historySeed, ...rest }: Props) {
+export function Thread({
+  rounds,
+  activeFormId,
+  answers,
+  onAnswersChange,
+  loadCandidate,
+  newSession,
+  historySeed,
+  onPickExample,
+}: Props) {
   return (
     <Conversation className="min-h-0 flex-1" aria-live="polite" aria-label="Conversation">
       <ConversationContent className="gap-4">
@@ -73,11 +82,11 @@ export function Thread({ rounds, onPickExample, historySeed, ...rest }: Props) {
             <RoundView
               key={round.id}
               round={round}
-              activeFormId={rest.activeFormId}
-              answers={round.id === rest.activeFormId ? rest.answers : []}
-              onAnswersChange={rest.onAnswersChange}
-              loadCandidate={rest.loadCandidate}
-              newSession={rest.newSession}
+              activeFormId={activeFormId}
+              answers={round.id === activeFormId ? answers : []}
+              onAnswersChange={onAnswersChange}
+              loadCandidate={loadCandidate}
+              newSession={newSession}
             />
           ))
         )}

@@ -423,7 +423,7 @@ export function useSessionController(init: () => SessionState = initialState): S
   const run = useCallback(
     async (
       message: string,
-      opts: { userText: string | null; fileName?: string; file: InputFile | null; freeze: FrozenAnswers | null },
+      opts: { userText: string | null; file: InputFile | null; freeze: FrozenAnswers | null },
     ) => {
       if (turnRunning) return;
       const first = !sessionId;
@@ -433,7 +433,7 @@ export function useSessionController(init: () => SessionState = initialState): S
         token,
         first,
         userText: opts.userText,
-        fileName: opts.fileName,
+        fileName: opts.file?.name,
         freeze: opts.freeze,
         now: Date.now(),
       });
@@ -454,7 +454,6 @@ export function useSessionController(init: () => SessionState = initialState): S
       const userText = file ? fileLine + (message ? `\n\n${message}` : "") : message;
       await run(message, {
         userText,
-        fileName: file?.name,
         file,
         // Free text sent beside an open question list closes it as "left to the model".
         freeze: { answers: [], keepAll: false },
