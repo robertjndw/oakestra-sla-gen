@@ -172,6 +172,30 @@ function freezeActiveForm(rounds: Round[], frozen: FrozenAnswers | null): Round[
   return rounds.map((x, i) => (i === idx ? { ...r, frozen } : x));
 }
 
+/**
+ * Undoes what turn-start did to the question list when the turn's message never made it into
+ * the server's session (it only commits a turn that produced a draft). The list is reopened, and
+ * text sent beside the answers comes back for the composer: left in the thread, its bubble would
+ * hide the list (selectActiveForm stops at user rounds).
+ */
+export function reopenLostForm(rounds: Round[]): { rounds: Round[]; text: string | null } {
+  const pendingIdx = rounds.findIndex((r) => r.kind === "pending");
+  if (pendingIdx === -1) return { rounds, text: null };
+  const userRound = rounds[pendingIdx - 1];
+  let formIdx = userRound?.kind === "user" ? pendingIdx - 2 : pendingIdx - 1;
+  // Failed and notice rounds don't close a list (selectActiveForm looks past them too), so a
+  // list behind them was still open when this turn started. One further back, past a user
+  // bubble or a draft, was closed by an earlier turn and stays closed.
+  while (formIdx >= 0 && (rounds[formIdx].kind === "failed" || rounds[formIdx].kind === "notice")) formIdx--;
+  const form = rounds[formIdx];
+  if (!form || (form.kind !== "draft" && form.kind !== "ask") || !form.frozen || form.frozen.keepAll) {
+    return { rounds, text: null };
+  }
+  const reopened = rounds.map((r, i) => (i === formIdx ? { ...form, frozen: null } : r));
+  if (userRound?.kind !== "user") return { rounds: reopened, text: null };
+  return { rounds: reopened.filter((r) => r !== userRound), text: userRound.text };
+}
+
 function notice(
   state: SessionState,
   title: string,
@@ -194,11 +218,14 @@ function applyResponse(
 ): SessionState {
   const { res, first, message, file } = action;
   const body = res.body ?? {};
-  const rounds = state.rounds.filter((r) => r.kind !== "pending");
+  const okSessionId = res.status === 200 && typeof body.session_id === "string" ? body.session_id : null;
+  const lost = okSessionId !== null ? { rounds: state.rounds, text: null } : reopenLostForm(state.rounds);
+  const rounds = lost.rounds.filter((r) => r.kind !== "pending");
+  const lostInput: RestoredInput | null = lost.text !== null ? { text: lost.text, file: null } : null;
   const base: SessionState = { ...state, rounds, turnRunning: false };
   const unchangedDraft = state.modelSla ? state.draftCount : null;
 
-  if (res.status === 200 && typeof body.session_id === "string") {
+  if (okSessionId !== null) {
     // A reopened history SLA went out with the first message, edits and all, so what was sent
     // becomes the baseline. Otherwise those edits would count as unsent hand edits and hold back
     // the draft the model built from them.
@@ -209,7 +236,7 @@ function applyResponse(
     if (!sla) {
       return {
         ...base,
-        sessionId: body.session_id,
+        sessionId: okSessionId,
         nextId: state.nextId + 1,
         rounds: [
           ...rounds,
@@ -226,7 +253,7 @@ function applyResponse(
     const keepEdits = base.editedSla.trim() !== "" && isEdited(base);
     return {
       ...base,
-      sessionId: body.session_id,
+      sessionId: okSessionId,
       nextId: state.nextId + 1,
       rounds: [
         ...rounds,
@@ -245,6 +272,7 @@ function applyResponse(
     return {
       ...base,
       sessionId: state.sessionId ?? body.session_id ?? null,
+      restoredInput: lostInput ?? state.restoredInput,
       nextId: state.nextId + 1,
       rounds: [
         ...rounds,
@@ -264,7 +292,7 @@ function applyResponse(
   const restored: RestoredInput | null =
     first && !state.sessionId
       ? { text: message, file }
-      : state.restoredInput;
+      : (lostInput ?? state.restoredInput);
 
   let round: Round;
   const detail = detailText(body.detail);
@@ -493,7 +521,9 @@ export function useSessionController(init: () => SessionState = initialState): S
   return {
     state,
     settingsLocked: !!sessionId,
-    hasUnacceptedWork: state.rounds.length > 0 && !state.accepted,
+    // Hand edits to a reopened history SLA count too: without a session they are in no history
+    // entry yet, so starting over would lose them for good.
+    hasUnacceptedWork: (state.rounds.length > 0 || isEdited(state)) && !state.accepted,
     send,
     answer,
     accept: useCallback(() => dispatch({ type: "accept" }), []),

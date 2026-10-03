@@ -9,7 +9,7 @@ import {
 } from "@/lib/constants";
 import { isObject, readStored, removeStored, writeStored } from "@/lib/storage";
 import type { Settings } from "@/lib/types";
-import { initialState, type RestoredInput, type Round, type SessionState } from "./use-session";
+import { initialState, reopenLostForm, type RestoredInput, type Round, type SessionState } from "./use-session";
 
 // Bump when Round or the persisted fields change shape. Older snapshots are then dropped
 // instead of being rendered with fields the UI no longer knows.
@@ -112,21 +112,11 @@ export function fromSnapshot(snap: SessionSnapshot, storedSettings: Settings): S
   if (first && userRound?.kind === "user" && !userRound.fileName) {
     restoredInput = { text: userRound.text, file: null };
   }
-  // The lost turn closed the open question list at turn-start. Its answers never reached the
-  // server, so reopen the list. Only a question round directly in front of the lost turn's own
-  // rounds was closed by it; one further back was closed by an earlier turn and stays closed.
-  const formIdx = userRound?.kind === "user" ? pendingIdx - 2 : pendingIdx - 1;
-  const form = fields.rounds[formIdx];
-  let rounds = fields.rounds;
-  if (form && (form.kind === "draft" || form.kind === "ask") && form.frozen && !form.frozen.keepAll) {
-    rounds = rounds.map((r, i) => (i === formIdx ? { ...form, frozen: null } : r));
-    // A user bubble after the list would hide it (selectActiveForm stops at user rounds). The
-    // bubble was text sent beside the answers, so it goes back into the composer instead.
-    if (userRound?.kind === "user") {
-      rounds = rounds.filter((r) => r !== userRound);
-      restoredInput = { text: userRound.text, file: null };
-    }
-  }
+  // The lost turn closed the open question list at turn-start, but its answers never reached the
+  // server, so the list is reopened.
+  const lostForm = reopenLostForm(fields.rounds);
+  const rounds = lostForm.rounds;
+  if (lostForm.text !== null) restoredInput = { text: lostForm.text, file: null };
   const notice: Round = {
     id: fields.nextId,
     kind: "notice",

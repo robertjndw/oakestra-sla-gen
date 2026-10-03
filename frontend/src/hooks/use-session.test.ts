@@ -19,11 +19,12 @@ const start = (
   token: number,
   first = true,
   freeze: Extract<SessionAction, { type: "turn-start" }>["freeze"] = null,
+  userText: string | null = "hi",
 ): SessionAction => ({
   type: "turn-start",
   token,
   first,
-  userText: "hi",
+  userText,
   freeze,
   now: 0,
 });
@@ -145,6 +146,42 @@ describe("status branches", () => {
     const r = last(s);
     expect(r.kind === "notice" && r.action).toBe("new-session");
     expect(s.restoredInput).toBeNull();
+  });
+
+  describe("a failed reply to open questions", () => {
+    const q = [{ topic: "t", question: "?", assumption: "x" }];
+    const answered = { answers: [], keepAll: false };
+    const replyFails = (res: ApiResponse, userText: string | null) =>
+      run(
+        initialState(),
+        start(1),
+        respond(1, ok(slaV1, q)),
+        start(2, false, answered, userText),
+        respond(2, res, false),
+      );
+
+    it.each([
+      ["422 with errors", { status: 422, body: { detail: "x", errors: ["e"], last_candidate: null, attempts: [], session_id: "s1" } }],
+      ["502", { status: 502, body: { detail: "down" } }],
+      ["network error", { status: 0, body: { detail: "offline" } }],
+    ] as [string, ApiResponse][])("reopens the list after %s", (_, res) => {
+      const s = replyFails(res, null);
+      expect(selectActiveForm(s)?.questions).toEqual(q);
+      expect(s.restoredInput).toBeNull();
+    });
+
+    it("moves text sent beside the answers back into the composer", () => {
+      const s = replyFails({ status: 502, body: { detail: "down" } }, "also add redis");
+      expect(selectActiveForm(s)?.questions).toEqual(q);
+      expect(kinds(s)).toEqual(["user", "draft", "notice"]);
+      expect(s.restoredInput).toEqual({ text: "also add redis", file: null });
+    });
+
+    it("reopens it again when the retry fails too", () => {
+      let s = replyFails({ status: 502, body: { detail: "down" } }, null);
+      s = run(s, start(3, false, answered, null), respond(3, { status: 502, body: {} }, false));
+      expect(selectActiveForm(s)?.questions).toEqual(q);
+    });
   });
 
   it.each([

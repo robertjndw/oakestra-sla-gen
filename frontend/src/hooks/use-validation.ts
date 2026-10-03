@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { validate } from "@/lib/api";
 import { VALIDATE_DEBOUNCE_MS } from "@/lib/constants";
 import { errorPosition } from "@/lib/json-paths";
+import { isObject } from "@/lib/storage";
 import type { Sla } from "@/lib/types";
 
 export type ValidationStatus = "idle" | "checking" | "valid" | "invalid" | "parse-error";
@@ -27,7 +28,13 @@ const NO_ERRORS: string[] = [];
 
 function tryParse(text: string): { sla: Sla } | { error: ParseError } {
   try {
-    return { sla: JSON.parse(text) as Sla };
+    const data: unknown = JSON.parse(text);
+    // `null` would otherwise leave no SLA to send for validation, and the badge would say
+    // "Checking" forever; arrays and scalars only earn a 422 from /validate.
+    if (!isObject(data) || Array.isArray(data)) {
+      return { error: { message: "An SLA must be a JSON object", line: 1, column: null } };
+    }
+    return { sla: data as Sla };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     const { line, column } = errorPosition(message, text);

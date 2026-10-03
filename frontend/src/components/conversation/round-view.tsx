@@ -70,7 +70,7 @@ export function RoundView({ round, activeFormId, answers, onAnswersChange, loadC
                 <p>
                   {round.unchangedDraft !== null
                     ? `Draft ${round.unchangedDraft} is unchanged. Add detail or rephrase, then send again.`
-                    : "Add detail or rephrase, then send again. More attempts per round in Settings can also help."}
+                    : "Add detail or rephrase, then send again. More attempts per round can also help, but Settings only change for a new session."}
                 </p>
                 {round.lastCandidate && (
                   <div>
