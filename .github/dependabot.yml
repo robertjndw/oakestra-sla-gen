@@ -1,0 +1,32 @@
+version: 2
+
+# One PR per side: package and Dockerfile bumps land together.
+multi-ecosystem-groups:
+  backend:
+    schedule:
+      interval: monthly
+  frontend:
+    schedule:
+      interval: monthly
+
+updates:
+  - package-ecosystem: uv
+    directory: /
+    patterns: ["*"]
+    multi-ecosystem-group: backend
+
+  - package-ecosystem: docker
+    directory: /
+    patterns: ["*"]
+    multi-ecosystem-group: backend
+
+  # npm picks up pnpm-lock.yaml
+  - package-ecosystem: npm
+    directory: /frontend
+    patterns: ["*"]
+    multi-ecosystem-group: frontend
+
+  - package-ecosystem: docker
+    directory: /frontend
+    patterns: ["*"]
+    multi-ecosystem-group: frontend
