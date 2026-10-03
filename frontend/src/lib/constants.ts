@@ -5,6 +5,10 @@ import type { Settings } from "./types";
 export const MAX_UPLOAD_CHARS = 64_000;
 
 export const MODE_STORAGE_KEY = "oakestra-playground-mode";
+export const SETTINGS_STORAGE_KEY = "oakestra-playground-settings";
+/** sessionStorage, so a reload keeps the conversation but a second tab starts fresh. */
+export const SESSION_STORAGE_KEY = "oakestra-playground-session";
+export const COMPOSER_STORAGE_KEY = "oakestra-playground-composer";
 
 export const VALIDATE_DEBOUNCE_MS = 400;
 

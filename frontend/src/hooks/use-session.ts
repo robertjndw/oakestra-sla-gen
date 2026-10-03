@@ -392,8 +392,8 @@ export interface SessionApi {
   dismissPendingDraft: () => void;
 }
 
-export function useSessionController(): SessionApi {
-  const [state, dispatch] = useReducer(sessionReducer, undefined, initialState);
+export function useSessionController(init: () => SessionState = initialState): SessionApi {
+  const [state, dispatch] = useReducer(sessionReducer, undefined, init);
   const tokenRef = useRef(0);
   const { sessionId, turnRunning, settings } = state;
 
