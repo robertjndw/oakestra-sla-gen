@@ -40,6 +40,7 @@ uv run oakestra-sla-gen "a single nginx web server on port 80 with 1 cpu and 512
 - [Docker Compose input](#docker-compose-input)
 - [HTTP API](#http-api)
 - [Playground](#playground)
+- [Frontend](#frontend)
 - [Deployment](#deployment)
 - [How it works](#how-it-works)
 - [Development](#development)
@@ -65,7 +66,7 @@ uv run oakestra-sla-gen "a single nginx web server on port 80 with 1 cpu and 512
 Prefer a browser? Start the [playground](#playground) with Docker, no Python needed:
 
 ```sh
-docker compose up --build    # then open http://localhost:8000/playground
+docker compose up --build    # API on :8000, playground on http://localhost:8080
 ```
 
 ## Usage
@@ -214,12 +215,16 @@ curl -X POST localhost:8000/generate -H 'content-type: application/json' \
 
 ## Playground
 
-`serve --playground` adds a browser UI at `/playground` for the interactive draft-and-answer
-loop:
+`serve` always includes the playground session API (`/playground/info`, `/playground/sessions`).
+The browser UI for the interactive draft-and-answer loop is the separate [frontend](#frontend);
+the API doesn't serve any HTML. For local development, run both:
 
 ```sh
-uv run oakestra-sla-gen serve --playground    # http://127.0.0.1:8000/playground
+uv run oakestra-sla-gen serve    # API on http://127.0.0.1:8000
+pnpm --dir frontend install && pnpm --dir frontend dev    # then open http://localhost:5173
 ```
+
+The dev server proxies `/api` to `127.0.0.1:8000`.
 
 - **Conversation (left pane)** - describe your app, or upload or drag-and-drop a compose file
   with an optional note. Each round shows whether the draft passed validation, what changed,
@@ -239,27 +244,38 @@ uv run oakestra-sla-gen serve --playground    # http://127.0.0.1:8000/playground
 | `POST /playground/sessions` | Start a session. Same fields as `POST /generate`, plus `check_images`. Returns `{session_id, sla, questions, attempts}`. |
 | `POST /playground/sessions/{id}/answer` | Continue a session with `{text}`. Returns the same shape. |
 | `DELETE /playground/sessions/{id}` | Drop a session. |
-| `GET /playground/info` | Returns `{model}`, shown in the page header. |
+| `GET /playground/info` | Returns `{model}`, shown in the UI header. |
 
 Sessions live only in the server process's memory. They don't survive a restart, aren't shared
 across worker processes, and are capped in count and idle time, oldest evicted first.
 
 </details>
 
+## Frontend
+
+The playground UI lives in `frontend/`: Vite, React 19, TypeScript, Tailwind, shadcn/ui,
+ai-elements and CodeMirror. Scripts, run from `frontend/` (or with `pnpm --dir frontend`):
+`dev`, `build`, `lint`, `typecheck` and `test`.
+
+In production it runs as an nginx container on port 8080 that serves the build and proxies
+`/api/*` to the API with the prefix stripped. The upstream is set at runtime with
+`API_UPSTREAM`, so the browser only ever talks to one origin.
+
 ## Deployment
 
 ### Docker
 
-`compose.yaml` builds the image and starts the HTTP server with the playground enabled:
+`compose.yaml` builds two images: the HTTP server with the playground API enabled (`sla-gen`,
+port 8000) and the playground UI (`frontend`, port 8080).
 
 ```sh
-docker compose up --build              # http://localhost:8000/playground
-PORT=9000 docker compose up --build    # if 8000 is taken on the host
+docker compose up --build              # API on :8000, playground on http://localhost:8080
+PORT=9000 FRONTEND_PORT=9080 docker compose up --build    # if the ports are taken on the host
 ```
 
-Prebuilt images for amd64 and arm64 are published to
-`ghcr.io/robertjndw/oakestra-sla-gen`: `latest` from `main`, plus a version tag for each `v*`
-git tag.
+Prebuilt images for amd64 and arm64 are published to `ghcr.io/robertjndw/oakestra-sla-gen` and
+`ghcr.io/robertjndw/oakestra-sla-gen-frontend`: `latest` from `main`, plus a version tag for
+each `v*` git tag.
 
 The LLM isn't part of the container. By default it talks to LM Studio on the Docker host at
 `http://host.docker.internal:1234/v1`. Set `OPENAI_BASE_URL`, `OPENAI_API_KEY` and
@@ -275,13 +291,19 @@ The LLM isn't part of the container. By default it talks to LM Studio on the Doc
 The server can run as an
 [Oakestra addon](https://github.com/oakestra/oakestra/tree/develop/addons_engine): the root
 orchestrator's addons engine runs the container next to the control plane, on the `oakestra`
-Docker network. `oakestra-addon.json` is the marketplace entry for it.
+Docker network. `oakestra-addon.json` is the marketplace entry for it. It defines two
+services: `sla_gen` (the API, port 8000) and `sla_gen_frontend` (the playground UI, port 8080).
 
 1. **Check `environment` in `oakestra-addon.json`.** The addons engine starts the container
    with plain `docker run` options and can't add `extra_hosts`, so `host.docker.internal`
    doesn't resolve. The default, `172.17.0.1`, is the Docker bridge gateway on a Linux host,
    which reaches an LLM server on the root orchestrator host as long as it listens on all
    interfaces. For an LLM elsewhere, use its real address.
+
+   The frontend's `API_UPSTREAM` must reach the API container. The addons engine names
+   containers `root_<service_name>` and puts them on the `oakestra` network, so the default is
+   `http://root_sla_gen:8000`. If your setup names them differently, use
+   `http://172.17.0.1:8000` instead, which works because the API publishes host port 8000.
 2. **Register it with the marketplace.** It moves from `under_review` to `approved` once the
    image is pulled, so the GHCR package has to be public (or the root orchestrator host has
    to be logged in to GHCR).
@@ -299,11 +321,12 @@ Docker network. `oakestra-addon.json` is the marketplace entry for it.
    ```
 
 The addons dashboard on port 11103 can do the same. The addons monitor polls every 30 seconds
-by default, after which the playground is at `http://<root-orchestrator>:8000/playground`.
+by default, after which the API is at `http://<root-orchestrator>:8000` and the playground at
+`http://<root-orchestrator>:8080`.
 
 In `ports`, the key is the container port and the value is the host port (the Docker SDK's
 convention; the dashboard's form labels them the other way round), so change the value to move
-it off 8000.
+it off 8000 or 8080.
 
 > [!WARNING]
 > Marketplace entries are stored and shown in plain text. Don't put a real API key in
@@ -346,7 +369,9 @@ The code lives in `src/oakestra_sla_gen/`:
 | `registry.py` | Container image existence checks |
 | `compose.py` | Docker Compose input handling |
 | `prompts.py` | System and correction prompts |
-| `server.py`, `playground.py`, `static/` | HTTP API and browser playground |
+| `server.py`, `playground.py` | HTTP API and playground session API |
+
+The browser playground is a separate project in `frontend/`, see [Frontend](#frontend).
 
 `tests/fixtures/` holds SLA fixtures vendored from Oakestra; see the
 [design notes](docs/design.md#test-fixtures) for how they're used.
