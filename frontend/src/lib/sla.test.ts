@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   describeChanges,
+  describePlacement,
+  describeResources,
   diffSlas,
   findLinks,
   firstDraftLine,
@@ -109,5 +111,20 @@ describe("links", () => {
     expect(links[0].from.ms.microservice_name).toBe("api");
     expect(links[0].to.ms.microservice_name).toBe("redis");
     expect(links[0].label).toBe("REDIS_URL");
+  });
+});
+
+describe("describeResources and describePlacement", () => {
+  it("summarizes resources, leaving out what is unset", () => {
+    expect(describeResources({ vcpus: 2, memory: 2048 })).toBe("2 vCPU, 2 GB memory");
+    expect(describeResources({ vcpus: 1, memory: 512, vgpus: 1, storage: 100 })).toBe(
+      "1 vCPU, 512 MB memory, 1 GPU, 100 MB storage",
+    );
+  });
+  it("describes placement constraints", () => {
+    expect(describePlacement({ constraints: [{ node: "n1" }, { cluster: "c1" }, {}] })).toBe(
+      "Pinned to node n1, Pinned to cluster c1, Direct constraint",
+    );
+    expect(describePlacement({})).toBe("");
   });
 });

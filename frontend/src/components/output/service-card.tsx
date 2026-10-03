@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatMb, joinWords, plural } from "@/lib/format";
-import { parsePorts, portLabel, splitEnv } from "@/lib/sla";
+import { joinWords, plural } from "@/lib/format";
+import { describePlacement, describeResources, parsePorts, portLabel, splitEnv } from "@/lib/sla";
 import type { IpTarget, ServiceLink } from "@/lib/sla";
 import type { ServiceEntry } from "@/lib/types";
 import { focusService } from "./focus-service";
@@ -47,12 +47,6 @@ export function ServiceCard({ service: s, mark, links, targets }: Props) {
   const ms = s.ms;
   const has = (...fields: string[]) => fields.some((f) => mark.changed.includes(f));
   const ports = parsePorts(ms.port);
-  const resources = [
-    plural(Number(ms.vcpus) || 0, "vCPU", "vCPU"),
-    formatMb(Number(ms.memory) || 0) + " memory",
-  ];
-  if (ms.vgpus) resources.push(plural(ms.vgpus, "GPU"));
-  if (ms.storage) resources.push(formatMb(ms.storage) + " storage");
   const users = links.filter((l) => l.to === s).map((l) => l.from.ms.microservice_name ?? "unnamed");
 
   return (
@@ -108,7 +102,7 @@ export function ServiceCard({ service: s, mark, links, targets }: Props) {
             )
           )}
           <Fact label="Resources" changed={has("vcpus", "vgpus", "memory", "storage")}>
-            {resources.join(", ")}
+            {describeResources(ms)}
           </Fact>
           {ms.addresses?.rr_ip && (
             <Fact label="Service IP" changed={has("addresses")}>
@@ -154,15 +148,7 @@ export function ServiceCard({ service: s, mark, links, targets }: Props) {
           )}
           {(ms.constraints ?? []).length > 0 && (
             <Fact label="Placement" changed={has("constraints")}>
-              {(ms.constraints as { node?: string; cluster?: string }[])
-                .map((c) =>
-                  c.node
-                    ? "Pinned to node " + c.node
-                    : c.cluster
-                      ? "Pinned to cluster " + c.cluster
-                      : "Direct constraint",
-                )
-                .join(", ")}
+              {describePlacement(ms)}
             </Fact>
           )}
         </dl>

@@ -16,6 +16,8 @@ const FIELD_LABELS: Record<string, string> = {
 };
 const DIFF_FIELDS = Object.keys(FIELD_LABELS);
 
+export const fieldLabel = (field: string): string => FIELD_LABELS[field] ?? field;
+
 export interface PortMapping {
   host: string;
   container: string;
@@ -69,6 +71,21 @@ export function parsePorts(port: string | undefined): PortMapping[] {
 export function portLabel(p: PortMapping): string {
   const s = p.host === p.container ? p.host : `${p.host} to ${p.container}`;
   return p.proto === "udp" ? s + " udp" : s;
+}
+
+export function describeResources(ms: SlaMicroservice): string {
+  const parts = [plural(Number(ms.vcpus) || 0, "vCPU", "vCPU"), formatMb(Number(ms.memory) || 0) + " memory"];
+  if (ms.vgpus) parts.push(plural(ms.vgpus, "GPU"));
+  if (ms.storage) parts.push(formatMb(ms.storage) + " storage");
+  return parts.join(", ");
+}
+
+export function describePlacement(ms: SlaMicroservice): string {
+  return ((ms.constraints ?? []) as { node?: string; cluster?: string }[])
+    .map((c) =>
+      c.node ? "Pinned to node " + c.node : c.cluster ? "Pinned to cluster " + c.cluster : "Direct constraint",
+    )
+    .join(", ");
 }
 
 export function services(sla: Sla | null | undefined): ServiceEntry[] {

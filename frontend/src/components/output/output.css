@@ -42,7 +42,21 @@
   pointer-events: none;
 }
 
+.service-map-node,
+.service-map .react-flow__edge,
+.service-map-label {
+  transition: opacity 150ms ease-out;
+}
+.service-map .is-dimmed {
+  opacity: 0.3;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .service-map-node,
+  .service-map .react-flow__edge,
+  .service-map-label {
+    transition: none;
+  }
   .output-indeterminate {
     animation-duration: 4s !important;
   }
