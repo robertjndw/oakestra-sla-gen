@@ -1,5 +1,5 @@
 # dist is plain static files, so build once on the host's platform rather than under emulation.
-FROM --platform=$BUILDPLATFORM node:24-slim AS build
+FROM --platform=$BUILDPLATFORM node:26-slim AS build
 WORKDIR /app
 RUN corepack enable
 COPY package.json pnpm-lock.yaml ./
@@ -7,7 +7,7 @@ RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store pnpm install
 COPY . .
 RUN pnpm build
 
-FROM nginxinc/nginx-unprivileged:1.29-alpine
+FROM nginxinc/nginx-unprivileged:1.31-alpine
 # Only these two are substituted into the template, so nginx's own $host, $uri etc. survive.
 ENV API_UPSTREAM=http://sla-gen:8000 \
     NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1 \
