@@ -1,0 +1,63 @@
+/* Keyframes live here because the shared index.css belongs to the app shell. */
+@keyframes output-indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(350%);
+  }
+}
+
+/* The language's own highlighter is a fallback with light-only colors, so the token classes
+   from syntax-plugin.ts have to win over whatever it puts inside them. */
+.cm-editor .syn-key,
+.cm-editor .syn-key * {
+  color: var(--primary) !important;
+  font-weight: 600;
+}
+.cm-editor .syn-str,
+.cm-editor .syn-str * {
+  color: var(--syn-str) !important;
+}
+.cm-editor .syn-num,
+.cm-editor .syn-num * {
+  color: var(--syn-num) !important;
+}
+.cm-editor .syn-lit,
+.cm-editor .syn-lit * {
+  color: var(--syn-lit) !important;
+}
+.cm-editor .syn-punc,
+.cm-editor .syn-punc * {
+  color: var(--muted-foreground) !important;
+}
+
+/* The map sits on the sidebar tone in both themes; keep React Flow's own chrome quiet. */
+.service-map .react-flow__attribution {
+  background: transparent;
+  opacity: 0.6;
+}
+.service-map .react-flow__handle {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.service-map-node,
+.service-map .react-flow__edge,
+.service-map-label {
+  transition: opacity 150ms ease-out;
+}
+.service-map .is-dimmed {
+  opacity: 0.3;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .service-map-node,
+  .service-map .react-flow__edge,
+  .service-map-label {
+    transition: none;
+  }
+  .output-indeterminate {
+    animation-duration: 4s !important;
+  }
+}

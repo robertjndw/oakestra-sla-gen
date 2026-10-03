@@ -3,13 +3,14 @@
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from operator import itemgetter
+from typing import Literal, get_args
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.runnables import RunnableLambda, RunnableMap, RunnablePassthrough
 from langchain_openai import ChatOpenAI
 
-from .models import Clarification, SLARequest
+from .models import DEFAULT_CUSTOMER_ID, Clarification, SLARequest
 from .prompts import CORRECTION_TEMPLATE, SYSTEM_PROMPT
 from .registry import image_exists
 from .validation import iter_microservices, validate_sla
@@ -21,6 +22,12 @@ from .validation import iter_microservices, validate_sla
 # (~10s/SLA, less accurate on image names). See README.
 DEFAULT_MODEL = "qwen/qwen3.8-27b"
 DEFAULT_REASONING_EFFORT = "low"
+
+OutputMethod = Literal["prompt", "json_schema", "function_calling"]
+OUTPUT_METHODS: tuple[str, ...] = get_args(OutputMethod)
+# Which method works depends on the LLM server, not on the request, so this is set per
+# deployment next to the model. See build_structured_llm for why `prompt` is the default.
+DEFAULT_METHOD: OutputMethod = "prompt"
 
 # Plausibility thresholds for the resource questions below. These are generous on purpose -
 # they're meant to catch "10TB of memory" typos and misreadings, not to second-guess anyone
@@ -106,7 +113,7 @@ def _with_parse_result(chain, parse):
     return RunnableMap(raw=chain) | with_fallback
 
 
-def build_structured_llm(llm: ChatOpenAI, method: str = "prompt"):
+def build_structured_llm(llm: ChatOpenAI, method: str = DEFAULT_METHOD):
     """Build a runnable that returns `{"raw", "parsed", "parsing_error"}` for `SLARequest`.
 
     `prompt` (the default) puts the JSON schema into the system prompt via
@@ -243,8 +250,8 @@ class SLASession:
         self,
         llm: ChatOpenAI | None = None,
         structured_llm=None,
-        method: str = "prompt",
-        customer_id: str = "Admin",
+        method: str = DEFAULT_METHOD,
+        customer_id: str = DEFAULT_CUSTOMER_ID,
         max_retries: int = 3,
         check_images: bool = True,
         on_attempt=None,
@@ -338,8 +345,8 @@ def generate_sla(
     *,
     structured_llm=None,
     llm: ChatOpenAI | None = None,
-    method: str = "prompt",
-    customer_id: str = "Admin",
+    method: str = DEFAULT_METHOD,
+    customer_id: str = DEFAULT_CUSTOMER_ID,
     max_retries: int = 3,
     check_images: bool = True,
     on_attempt=None,

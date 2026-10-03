@@ -5,7 +5,7 @@
 [![Container image](https://img.shields.io/badge/ghcr.io-oakestra--sla--gen-blue?logo=docker)](https://github.com/robertjndw/oakestra-sla-gen/pkgs/container/oakestra-sla-gen)
 
 Generate a verified [Oakestra](https://oakestra.io) SLA from a free-text description or a
-Docker Compose file.
+Docker Compose file, or modify an existing SLA.
 
 Oakestra deploys applications from a JSON SLA document, and writing one by hand is easy to get
 wrong: strict name rules, exact field names, port syntax, units. `oakestra-sla-gen` asks an
@@ -17,19 +17,25 @@ one.
 uv run oakestra-sla-gen "a single nginx web server on port 80 with 1 cpu and 512MB memory" -o sla.json
 ```
 
+![The playground with a verified two-service draft: the model's assumptions on the left, the service map and per-service details on the right](docs/images/playground-draft.png)
+
 ## Features
 
 - **Verified output only** - every SLA is checked against Oakestra's JSON Schema plus semantic
   checks (ports, env vars, names, resources). Validation errors are fed back to the LLM, which
   retries until the SLA passes.
-- **Interactive clarification** - the model drafts what it can and asks about what it's unsure
+- **Asks instead of guessing** - the model drafts what it can and asks about what it's unsure
   of, showing the assumption it used. Vague descriptions get questions, not invented apps.
-- **Docker Compose translation** - turn an existing `compose.yaml` into an Oakestra SLA.
+- **Docker Compose translation** - turn an existing `compose.yaml` into an Oakestra SLA, with
+  service references rewritten to Oakestra service IPs.
+- **Edit existing SLAs** - start from an SLA you already have and change it in plain language.
 - **Image checks** - container images are looked up in their registry, so hallucinated image
   names are caught.
+- **Browser playground** - chat with the model, see the services on a map, edit the JSON by
+  hand with live validation, and reopen past SLAs from the history.
 - **Any OpenAI-compatible LLM** - works with local models via LM Studio as well as hosted APIs.
-- **CLI, HTTP API and browser playground** - use it from a terminal, a script, or a web UI.
-- **Runs as an Oakestra addon** - deploy it next to your root orchestrator.
+- **CLI, HTTP API or Oakestra addon** - use it from a terminal or a script, or deploy it next
+  to your root orchestrator.
 
 ## Contents
 
@@ -38,6 +44,7 @@ uv run oakestra-sla-gen "a single nginx web server on port 80 with 1 cpu and 512
 - [Usage](#usage)
 - [Configuration](#configuration)
 - [Docker Compose input](#docker-compose-input)
+- [Existing SLA input](#existing-sla-input)
 - [HTTP API](#http-api)
 - [Playground](#playground)
 - [Deployment](#deployment)
@@ -46,10 +53,12 @@ uv run oakestra-sla-gen "a single nginx web server on port 80 with 1 cpu and 512
 
 ## Requirements
 
-- Python 3.12+ and [uv](https://docs.astral.sh/uv/)
+- Python 3.12+ and [uv](https://docs.astral.sh/uv/) for the CLI and API, or Docker to run the
+  API and playground without a local Python setup
 - An OpenAI-compatible LLM endpoint. The defaults target a local
   [LM Studio](https://lmstudio.ai) server at `http://127.0.0.1:1234/v1` running
   `qwen/qwen3.8-27b`; see [Configuration](#configuration) to point it elsewhere.
+- Node.js 24 and [pnpm](https://pnpm.io), only to work on the playground frontend
 
 ## Quick start
 
@@ -65,7 +74,7 @@ uv run oakestra-sla-gen "a single nginx web server on port 80 with 1 cpu and 512
 Prefer a browser? Start the [playground](#playground) with Docker, no Python needed:
 
 ```sh
-docker compose up --build    # then open http://localhost:8000/playground
+docker compose up --build    # API on :8000, playground on http://localhost:8080
 ```
 
 ## Usage
@@ -78,6 +87,9 @@ echo "..." | uv run oakestra-sla-gen
 
 # translate a compose file, with optional notes
 uv run oakestra-sla-gen --compose compose.yaml "pin api to cluster edge1"
+
+# change an existing SLA
+uv run oakestra-sla-gen --sla sla.json "give the api 2 cpus and add a redis cache"
 
 # check a hand-written SLA with the same verifier
 uv run oakestra-sla-gen validate existing_sla.json
@@ -128,7 +140,7 @@ are printed and the command exits with `3`.
 |---|---|
 | `0` | A verified SLA was printed. |
 | `1` | Generation failed within the retry budget, or was aborted with `q`. Errors are on stderr. |
-| `2` | Usage or connection error, or a compose file that doesn't exist or doesn't parse. |
+| `2` | Usage or connection error, or a compose file or SLA that doesn't exist or doesn't parse. |
 | `3` | Non-interactive only: the description needs clarification and no SLA was produced. |
 
 ## Configuration
@@ -139,19 +151,23 @@ are printed and the command exits with `3`.
 | `--model` | `OAKESTRA_SLA_MODEL` | `qwen/qwen3.8-27b` | Model name |
 | `--api-key` | `OPENAI_API_KEY` | `lm-studio` | API key |
 | `--reasoning-effort` | | `low` | `low`, `medium` or `high` |
-| `--method` | | `prompt` | Structured output method: `prompt`, `json_schema` or `function_calling` |
+| `--method` | `OAKESTRA_SLA_METHOD` | `prompt` | Structured output method: `prompt`, `json_schema` or `function_calling`. Pick what your LLM server supports |
 | `--max-retries` | | `3` | Correction rounds before giving up |
-| `--customer-id` | | `Admin` | Oakestra customer ID written into the SLA |
+| `--customer-id` | | `Admin` | Oakestra customer ID written into the SLA. With `--sla`, defaults to that file's own |
 | `--no-image-check` | | off | Skip checking that images exist in their registry |
 | `--no-interactive` | | off | Never prompt, see [Non-interactive mode](#non-interactive-mode) |
 | `-c`, `--compose` | | | Translate a compose file, see [Docker Compose input](#docker-compose-input) |
+| `-s`, `--sla` | | | Start from an existing SLA, see [Existing SLA input](#existing-sla-input) |
 | `-f`, `--file` | | | Read the description from a file |
 | `-o`, `--output` | | stdout | Write the SLA to a file |
 | `-v`, `--verbose` | | off | Log each attempt and its errors to stderr |
 
-Why `prompt` and `qwen/qwen3.8-27b` are the defaults is covered in the
-[design notes](docs/design.md#structured-output-methods). For faster but less accurate
-results, try `--model openai/gpt-oss-20b`.
+For faster but less accurate results, try `--model openai/gpt-oss-20b`.
+
+Which method to use depends on the LLM server. `prompt` works everywhere and is the safe choice
+for LM Studio and other local servers, whose constrained decoding can silently drop or garble
+fields. `json_schema` suits servers with reliable constrained decoding, such as
+OpenAI, and `function_calling` needs a model and server that support tool calling.
 
 ## Docker Compose input
 
@@ -176,6 +192,25 @@ service IP.
 Oakestra equivalent and are dropped, with a question raised when it matters. Compose files are
 capped at 64,000 characters.
 
+## Existing SLA input
+
+The CLI's `--sla`, the HTTP API's `sla` field and the playground's upload button all start from
+an SLA you already have instead of a description. The model uses it as the first draft and
+leaves it alone unless told otherwise. The positional text, `-f`, stdin, the `description`
+field or the playground's chat say what to change. With no notes at all, you get the same SLA
+back, verified, with its images checked and any open questions raised.
+
+The SLA doesn't have to be valid: if it fails validation, the problems are handed to the model
+to fix. Fields the generator can't represent (`connectivity`, latency or geo constraints,
+`bandwidth_in`, `added_files`, ...) are dropped, and the model is told which ones so it can ask
+about those that change behavior. The uploaded `customerID` is kept unless you set
+`--customer-id`, `customer_id` or the playground's Customer ID explicitly. SLAs are capped at
+64,000 characters.
+
+The playground tells uploads apart by content: a JSON object without a `services` key is an
+SLA, anything else is a compose file. A `.json` file that doesn't parse counts as an SLA, so
+you get the JSON error.
+
 ## HTTP API
 
 The server is an optional extra, so the plain CLI install doesn't pull in FastAPI:
@@ -186,21 +221,26 @@ uv run oakestra-sla-gen serve          # http://127.0.0.1:8000, OpenAPI docs at 
 uv run oakestra-sla-gen serve --host 0.0.0.0 --port 9000 --model openai/gpt-oss-20b
 ```
 
-`serve` accepts the same `--base-url`, `--model`, `--api-key` and `--reasoning-effort` flags
-(and env vars) as generation. They're fixed at startup; everything else is set per request.
+`serve` accepts the same `--base-url`, `--model`, `--api-key`, `--reasoning-effort` and
+`--method` flags (and env vars) as generation. They're fixed at startup; everything else is set
+per request. A request can still override the method with its own `method` field, which is
+handy for comparing methods against one server.
 
 | Endpoint | Body | Response |
 |---|---|---|
-| `POST /generate` | `{"description", "compose", "method", "customer_id", "max_retries"}` | The verified SLA |
+| `POST /generate` | `{"description", "compose", "sla", "method", "customer_id", "max_retries"}` | The verified SLA |
 | `POST /validate` | An SLA document | `{"valid": bool, "errors": [...]}`, always `200` |
 
-For `/generate`, either `description` or `compose` is required. With both, `compose` is
-translated and `description` is used as notes. `max_retries` is capped at 10. Error responses:
+For `/generate`, one of `description`, `compose` or `sla` is required. `compose` and `sla`
+take the raw file text and can't be combined. Next to either one, `description` is used as
+notes. `method` is optional and defaults to the server's `--method`. `max_retries` is capped
+at 10. Error responses:
 
 - `422` with `{"detail", "errors", "last_candidate"}` if no valid SLA came out within
   `max_retries`
 - `422` with `{"detail", "questions"}` if the input was too vague to draft anything
-- `422` with a readable `msg` if `compose` isn't a usable compose file
+- `422` with a readable `msg` if `compose` isn't a usable compose file or `sla` isn't usable
+  JSON with at least one application
 - `502` if the LLM server failed
 
 `/generate` is single-shot: it doesn't expose the interactive session, so open questions come
@@ -214,35 +254,54 @@ curl -X POST localhost:8000/generate -H 'content-type: application/json' \
 
 ## Playground
 
-`serve --playground` adds a browser UI at `/playground` for the interactive draft-and-answer
-loop:
+The playground is a browser UI for the same draft-and-answer loop as the CLI's interactive
+mode. The quickest way to run it is `docker compose up --build` and then
+<http://localhost:8080> (see [Docker](#docker)). To run it from source, see
+[Frontend](#frontend).
 
-```sh
-uv run oakestra-sla-gen serve --playground    # http://127.0.0.1:8000/playground
-```
+![The playground before the first message, with example prompts to start from](docs/images/playground-empty.png)
 
-- **Conversation (left pane)** - describe your app, or upload or drag-and-drop a compose file
-  with an optional note. Each round shows whether the draft passed validation, what changed,
-  and the model's open questions. Keep each assumption or answer it, then update or accept the
-  draft.
+- **Conversation (left pane)** - describe your app, pick one of the examples, or upload or
+  drop a compose file or an existing SLA with an optional note. Then keep changing the draft
+  through the chat. Each round shows whether the draft passed validation, what changed, and
+  the model's open questions. Keep each assumption or answer it, then update or accept the
+  draft. If no valid SLA comes out of a round, you can load the last attempt into the code
+  view and fix it by hand.
 - **Visual view (right pane)** - a map of the services, what's reachable from outside and
   which service references another's service IP, followed by a section per service with
   changed fields and validation problems marked.
 - **Code view (right pane)** - the editable SLA JSON, re-validated as you type. Clicking a
-  problem jumps to its line.
+  problem jumps to its line. If the model sends a new draft while you have unsaved edits, you
+  choose which one to keep.
+- **Settings (top bar)** - attempts per round, the customer ID and whether to check that
+  images exist. They lock once a session starts; **New session** unlocks them. The model and
+  output method are server settings, see [HTTP API](#http-api).
+- **History (top bar)** - keeps the latest draft of each session (with your hand edits) in the
+  browser's local storage, up to 20 entries. Opening one starts a new session from that SLA,
+  because server sessions expire after an hour. Entries can be copied, downloaded or deleted.
+  Nothing leaves the browser, but any secrets in the SLAs are stored there until you delete them.
+
+The settings and the current conversation also survive a page reload. The UI follows the
+system's light or dark mode.
+
+![The code view showing the editable SLA JSON for the same draft](docs/images/playground-code.png)
 
 <details>
 <summary>Playground endpoints</summary>
 
+`serve` always includes these. The API doesn't serve any HTML; the UI is the separate
+[frontend](#frontend).
+
 | Endpoint | Description |
 |---|---|
 | `POST /playground/sessions` | Start a session. Same fields as `POST /generate`, plus `check_images`. Returns `{session_id, sla, questions, attempts}`. |
-| `POST /playground/sessions/{id}/answer` | Continue a session with `{text}`. Returns the same shape. |
+| `POST /playground/sessions/{id}/answer` | Continue a session with `{text}`. Returns the same shape. `409` while a turn is still running. |
 | `DELETE /playground/sessions/{id}` | Drop a session. |
-| `GET /playground/info` | Returns `{model}`, shown in the page header. |
+| `GET /playground/info` | Returns `{model}`, shown in the UI header. |
 
-Sessions live only in the server process's memory. They don't survive a restart, aren't shared
-across worker processes, and are capped in count and idle time, oldest evicted first.
+Sessions live only in the server process's memory. They don't survive a restart and aren't
+shared across worker processes. At most 32 are kept, each for up to an hour of inactivity,
+oldest evicted first.
 
 </details>
 
@@ -250,20 +309,22 @@ across worker processes, and are capped in count and idle time, oldest evicted f
 
 ### Docker
 
-`compose.yaml` builds the image and starts the HTTP server with the playground enabled:
+`compose.yaml` builds two images: the HTTP server with the playground API enabled (`sla-gen`,
+port 8000) and the playground UI (`frontend`, port 8080).
 
 ```sh
-docker compose up --build              # http://localhost:8000/playground
-PORT=9000 docker compose up --build    # if 8000 is taken on the host
+docker compose up --build              # API on :8000, playground on http://localhost:8080
+PORT=9000 FRONTEND_PORT=9080 docker compose up --build    # if the ports are taken on the host
 ```
 
-Prebuilt images for amd64 and arm64 are published to
-`ghcr.io/robertjndw/oakestra-sla-gen`: `latest` from `main`, plus a version tag for each `v*`
-git tag.
+Prebuilt images for amd64 and arm64 are published to `ghcr.io/robertjndw/oakestra-sla-gen` and
+`ghcr.io/robertjndw/oakestra-sla-gen-frontend`: `latest` from `main`, plus a version tag for
+each `v*` git tag.
 
 The LLM isn't part of the container. By default it talks to LM Studio on the Docker host at
-`http://host.docker.internal:1234/v1`. Set `OPENAI_BASE_URL`, `OPENAI_API_KEY` and
-`OAKESTRA_SLA_MODEL` in the environment (or a `.env` file) to point it somewhere else.
+`http://host.docker.internal:1234/v1`. Set `OPENAI_BASE_URL`, `OPENAI_API_KEY`,
+`OAKESTRA_SLA_MODEL` and `OAKESTRA_SLA_METHOD` in the environment (or a `.env` file) to point it
+somewhere else.
 
 > [!NOTE]
 > On Linux, LM Studio has to listen on all interfaces rather than only `127.0.0.1`, or the
@@ -275,13 +336,19 @@ The LLM isn't part of the container. By default it talks to LM Studio on the Doc
 The server can run as an
 [Oakestra addon](https://github.com/oakestra/oakestra/tree/develop/addons_engine): the root
 orchestrator's addons engine runs the container next to the control plane, on the `oakestra`
-Docker network. `oakestra-addon.json` is the marketplace entry for it.
+Docker network. `oakestra-addon.json` is the marketplace entry for it. It defines two
+services: `sla_gen` (the API, port 8000) and `sla_gen_frontend` (the playground UI, port 8080).
 
 1. **Check `environment` in `oakestra-addon.json`.** The addons engine starts the container
    with plain `docker run` options and can't add `extra_hosts`, so `host.docker.internal`
    doesn't resolve. The default, `172.17.0.1`, is the Docker bridge gateway on a Linux host,
    which reaches an LLM server on the root orchestrator host as long as it listens on all
    interfaces. For an LLM elsewhere, use its real address.
+
+   The frontend's `API_UPSTREAM` must reach the API container. The addons engine names
+   containers `root_<service_name>` and puts them on the `oakestra` network, so the default is
+   `http://root_sla_gen:8000`. If your setup names them differently, use
+   `http://172.17.0.1:8000` instead, which works because the API publishes host port 8000.
 2. **Register it with the marketplace.** It moves from `under_review` to `approved` once the
    image is pulled, so the GHCR package has to be public (or the root orchestrator host has
    to be logged in to GHCR).
@@ -299,11 +366,12 @@ Docker network. `oakestra-addon.json` is the marketplace entry for it.
    ```
 
 The addons dashboard on port 11103 can do the same. The addons monitor polls every 30 seconds
-by default, after which the playground is at `http://<root-orchestrator>:8000/playground`.
+by default, after which the API is at `http://<root-orchestrator>:8000` and the playground at
+`http://<root-orchestrator>:8080`.
 
 In `ports`, the key is the container port and the value is the host port (the Docker SDK's
 convention; the dashboard's form labels them the other way round), so change the value to move
-it off 8000.
+it off 8000 or 8080.
 
 > [!WARNING]
 > Marketplace entries are stored and shown in plain text. Don't put a real API key in
@@ -321,11 +389,9 @@ it off 8000.
 5. A session wraps this into a conversation, which the CLI's interactive mode and the
    playground build on.
 
-The [design notes](docs/design.md) cover the pipeline in more detail, where Oakestra's docs and
-code disagree about the SLA format, and why the default structured output method and model
-were chosen.
-
 ## Development
+
+### Backend
 
 ```sh
 uv sync
@@ -345,8 +411,30 @@ The code lives in `src/oakestra_sla_gen/`:
 | `validation.py`, `oakestra_schema.py` | Verifier and the vendored Oakestra JSON Schema |
 | `registry.py` | Container image existence checks |
 | `compose.py` | Docker Compose input handling |
+| `existing_sla.py` | Existing SLA input handling |
 | `prompts.py` | System and correction prompts |
-| `server.py`, `playground.py`, `static/` | HTTP API and browser playground |
+| `server.py`, `playground.py` | HTTP API and playground session API |
 
-`tests/fixtures/` holds SLA fixtures vendored from Oakestra; see the
-[design notes](docs/design.md#test-fixtures) for how they're used.
+`tests/fixtures/` holds SLA fixtures vendored from Oakestra. The `sla_correct_*` ones must pass
+validation and the `sla_flawed_*` ones must fail it.
+
+### Frontend
+
+The playground UI lives in `frontend/`: Vite, React 19, TypeScript, Tailwind, shadcn/ui,
+ai-elements, React Flow and CodeMirror. To run it against a local API:
+
+```sh
+uv run oakestra-sla-gen serve    # API on http://127.0.0.1:8000
+pnpm --dir frontend install
+pnpm --dir frontend dev          # then open http://localhost:5173
+```
+
+The dev server proxies `/api` to `127.0.0.1:8000`. Other scripts, run from `frontend/` (or
+with `pnpm --dir frontend`): `build`, `lint`, `typecheck` and `test`.
+
+In production it runs as an nginx container on port 8080 that serves the build and proxies
+`/api/*` to the API with the prefix stripped. The upstream is set at runtime with
+`API_UPSTREAM`, so the browser only ever talks to one origin.
+
+CI runs all of the checks above (except the `llm` tests) on pull requests and pushes to `main`,
+then builds both images and publishes them from `main` and `v*` tags.

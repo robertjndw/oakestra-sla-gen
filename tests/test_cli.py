@@ -1,7 +1,7 @@
 """CLI tests with a fake session, no network or real TTY involved."""
 
 import pytest
-from helpers import COMPOSE_YAML
+from helpers import COMPOSE_YAML, EXISTING_SLA_JSON
 
 from oakestra_sla_gen import cli
 from oakestra_sla_gen.generator import Draft
@@ -157,6 +157,89 @@ def test_compose_flag_with_invalid_compose_exits_2(monkeypatch, tmp_path, capsys
     assert "error:" in capsys.readouterr().err
 
 
+def test_sla_flag_sends_the_sla_and_changes(monkeypatch, tmp_path):
+    sla_file = tmp_path / "sla.json"
+    sla_file.write_text(EXISTING_SLA_JSON)
+    fake = _patch_session(monkeypatch, [Draft(sla=_NGINX_SLA, questions=[])])
+
+    code = cli._generate_command(["add redis", "--sla", str(sla_file), "--no-interactive"])
+
+    assert code == 0
+    [(_, sent)] = fake.calls
+    assert EXISTING_SLA_JSON.strip() in sent
+    assert "Changes the user wants:\nadd redis" in sent
+
+
+@pytest.mark.parametrize(
+    ("flags", "expected"), [([], "acme"), (["--customer-id", "other"], "other")]
+)
+def test_sla_flag_keeps_the_uploaded_customer_id_unless_one_is_given(
+    monkeypatch, tmp_path, flags, expected
+):
+    monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+    sla_file = tmp_path / "sla.json"
+    sla_file.write_text(EXISTING_SLA_JSON.replace('"customerID": "Admin"', '"customerID": "acme"'))
+    fake = FakeSession([Draft(sla=_NGINX_SLA, questions=[])])
+    seen = {}
+    monkeypatch.setattr(cli, "SLASession", lambda **kwargs: seen.update(kwargs) or fake)
+
+    code = cli._generate_command(["--sla", str(sla_file), "--no-interactive", *flags])
+
+    assert code == 0
+    assert seen["customer_id"] == expected
+
+
+def test_sla_flag_with_invalid_json_exits_2(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+    sla_file = tmp_path / "sla.json"
+    sla_file.write_text("{nope")
+    _patch_session(monkeypatch, [])
+
+    code = cli._generate_command(["--sla", str(sla_file), "--no-interactive"])
+
+    assert code == 2
+    assert "invalid JSON" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("env", "flags", "expected"),
+    [
+        (None, [], "prompt"),
+        ("json_schema", [], "json_schema"),
+        ("json_schema", ["--method", "function_calling"], "function_calling"),
+    ],
+)
+def test_method_comes_from_the_environment_unless_given(monkeypatch, env, flags, expected):
+    if env is None:
+        monkeypatch.delenv("OAKESTRA_SLA_METHOD", raising=False)
+    else:
+        monkeypatch.setenv("OAKESTRA_SLA_METHOD", env)
+    seen = {}
+    fake = FakeSession([Draft(sla=_NGINX_SLA, questions=[])])
+    monkeypatch.setattr(cli, "SLASession", lambda **kwargs: seen.update(kwargs) or fake)
+
+    code = cli._generate_command(["nginx", "--no-interactive", *flags])
+
+    assert code == 0
+    assert seen["method"] == expected
+
+
+def test_invalid_method_in_the_environment_is_a_usage_error(monkeypatch, capsys):
+    monkeypatch.setenv("OAKESTRA_SLA_METHOD", "jsonschema")
+    _patch_session(monkeypatch, [])
+
+    with pytest.raises(SystemExit) as exit_info:
+        cli._generate_command(["nginx", "--no-interactive"])
+
+    assert exit_info.value.code == 2
+    assert "OAKESTRA_SLA_METHOD" in capsys.readouterr().err
+
+
+def test_sla_and_compose_flags_are_mutually_exclusive():
+    with pytest.raises(SystemExit):
+        cli._generate_command(["--sla", "a.json", "--compose", "b.yaml"])
+
+
 # -- interactive loop ----------------------------------------------------------
 
 
@@ -227,7 +310,7 @@ def test_interactive_loop_q_aborts(monkeypatch):
 # -- serve --------------------------------------------------------------------
 
 
-def test_serve_playground_flag_and_reasoning_effort(monkeypatch, capsys):
+def test_serve_includes_playground_routes_and_reasoning_effort(monkeypatch):
     # serve builds an LLM too, so it needs --reasoning-effort just like generation does.
     import uvicorn
 
@@ -241,24 +324,10 @@ def test_serve_playground_flag_and_reasoning_effort(monkeypatch, capsys):
         lambda app, host, port: captured.update(app=app, host=host, port=port),
     )
 
-    code = cli._serve_command(["--playground", "--reasoning-effort", "high"])
+    code = cli._serve_command(["--reasoning-effort", "high"])
 
     assert code == 0
     assert captured["build_llm_kwargs"]["reasoning_effort"] == "high"
     assert captured["host"] == "127.0.0.1"
     assert captured["port"] == 8000
-    assert "/playground" in [route.path for route in captured["app"].routes]
-    assert "playground at http://127.0.0.1:8000/playground" in capsys.readouterr().err
-
-
-def test_serve_without_playground_flag_skips_playground_routes(monkeypatch):
-    import uvicorn
-
-    captured = {}
-    monkeypatch.setattr(cli, "build_llm", lambda **kwargs: object())
-    monkeypatch.setattr(uvicorn, "run", lambda app, host, port: captured.update(app=app))
-
-    code = cli._serve_command([])
-
-    assert code == 0
-    assert "/playground" not in [route.path for route in captured["app"].routes]
+    assert "/playground/info" in [route.path for route in captured["app"].routes]

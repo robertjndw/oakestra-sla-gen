@@ -8,9 +8,12 @@ import pathlib
 import sys
 
 from .compose import ComposeError, compose_message
+from .existing_sla import ExistingSLAError, existing_sla_message, resolve_customer_id
 from .generator import (
+    DEFAULT_METHOD,
     DEFAULT_MODEL,
     DEFAULT_REASONING_EFFORT,
+    OUTPUT_METHODS,
     SLAGenerationError,
     SLASession,
     build_llm,
@@ -32,6 +35,25 @@ def _add_llm_arguments(parser: argparse.ArgumentParser) -> None:
         choices=["low", "medium", "high"],
         default=DEFAULT_REASONING_EFFORT,
     )
+    parser.add_argument(
+        "--method",
+        choices=OUTPUT_METHODS,
+        default=os.environ.get("OAKESTRA_SLA_METHOD", DEFAULT_METHOD),
+        help="How the model is asked for structured output. Depends on what the LLM server "
+        "supports; see the README.",
+    )
+
+
+def _parse_llm_args(parser: argparse.ArgumentParser, argv: list[str]) -> argparse.Namespace:
+    args = parser.parse_args(argv)
+    # argparse only checks `choices` for values given on the command line, so a typo in
+    # OAKESTRA_SLA_METHOD would otherwise surface much later as a confusing LLM error.
+    if args.method not in OUTPUT_METHODS:
+        parser.error(
+            f"invalid method {args.method!r} (from OAKESTRA_SLA_METHOD); "
+            f"choose from {', '.join(OUTPUT_METHODS)}"
+        )
+    return args
 
 
 def _llm_from_args(args: argparse.Namespace):
@@ -127,19 +149,26 @@ def _generate_command(argv: list[str]) -> int:
     )
     parser.add_argument("text", nargs="?", help="Free-text description of the application(s).")
     parser.add_argument("-f", "--file", help="Read the description from a file.")
-    parser.add_argument(
+    input_file = parser.add_mutually_exclusive_group()
+    input_file.add_argument(
         "-c",
         "--compose",
         help="Read a docker compose file and translate it into an SLA. "
         "The positional text, -f, or stdin then become optional notes alongside it.",
     )
+    input_file.add_argument(
+        "-s",
+        "--sla",
+        help="Start from an existing SLA (JSON) instead of a description. "
+        "The positional text, -f, or stdin then become optional changes to make to it.",
+    )
     parser.add_argument("-o", "--output", help="Write the verified SLA here instead of stdout.")
     _add_llm_arguments(parser)
-    parser.add_argument(
-        "--method", choices=["prompt", "json_schema", "function_calling"], default="prompt"
-    )
     parser.add_argument("--max-retries", type=int, default=3)
-    parser.add_argument("--customer-id", default="Admin")
+    parser.add_argument(
+        "--customer-id",
+        help="Customer ID for the SLA. Defaults to the --sla file's own, or Admin.",
+    )
     parser.add_argument(
         "--no-image-check",
         action="store_true",
@@ -153,15 +182,19 @@ def _generate_command(argv: list[str]) -> int:
     parser.add_argument(
         "-v", "--verbose", action="store_true", help="Log each attempt and its errors to stderr."
     )
-    args = parser.parse_args(argv)
+    args = _parse_llm_args(parser, argv)
 
     text = _read_text_arg(args)
-    if args.compose:
-        # Notes are optional next to a compose file, so having none isn't a usage error.
+    sla_text = None
+    if args.compose or args.sla:
+        # Notes are optional next to an input file, so having none isn't a usage error.
         try:
-            compose_text = pathlib.Path(args.compose).read_text()
-            description = compose_message(compose_text, text or "")
-        except (ComposeError, OSError) as error:
+            if args.compose:
+                description = compose_message(pathlib.Path(args.compose).read_text(), text or "")
+            else:
+                sla_text = pathlib.Path(args.sla).read_text()
+                description = existing_sla_message(sla_text, text or "")
+        except (ComposeError, ExistingSLAError, OSError) as error:
             print(f"error: {error}", file=sys.stderr)
             return 2
     elif text is not None:
@@ -185,7 +218,7 @@ def _generate_command(argv: list[str]) -> int:
         session = SLASession(
             llm=_llm_from_args(args),
             method=args.method,
-            customer_id=args.customer_id,
+            customer_id=resolve_customer_id(args.customer_id, sla_text),
             max_retries=args.max_retries,
             check_images=not args.no_image_check,
             on_attempt=on_attempt,
@@ -250,12 +283,7 @@ def _serve_command(argv: list[str]) -> int:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
     _add_llm_arguments(parser)
-    parser.add_argument(
-        "--playground",
-        action="store_true",
-        help="Also serve the browser playground at /playground.",
-    )
-    args = parser.parse_args(argv)
+    args = _parse_llm_args(parser, argv)
 
     # Imported here so the CLI keeps working when the `server` extra isn't installed.
     try:
@@ -276,11 +304,9 @@ def _serve_command(argv: list[str]) -> int:
     # than per request.
     app = create_app(
         functools.cache(lambda method: build_structured_llm(llm, method=method)),
-        playground=args.playground,
         model=args.model,
+        default_method=args.method,
     )
-    if args.playground:
-        print(f"playground at http://{args.host}:{args.port}/playground", file=sys.stderr)
     uvicorn.run(app, host=args.host, port=args.port)
     return 0
 

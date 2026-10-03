@@ -22,6 +22,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 # that to surface as an error, not vanish.
 _STRICT = ConfigDict(extra="forbid")
 
+DEFAULT_CUSTOMER_ID = "Admin"
+
 NAME_PATTERN = r"^[a-zA-Z0-9]{1,10}$"
 ENV_PATTERN = r"^[A-Za-z_][A-Za-z0-9_]*=.*$"
 # Oakestra's service IP range; any 10.30.X.Y the user picks is load-balanced
@@ -170,7 +172,7 @@ class SLARequest(BaseModel):
             raise ValueError("must include at least one application or one question")
         return self
 
-    def to_oakestra_sla(self, customer_id: str = "Admin") -> dict:
+    def to_oakestra_sla(self, customer_id: str = DEFAULT_CUSTOMER_ID) -> dict:
         """Wrap the LLM's output into the document shape Oakestra expects.
 
         `microserviceID` must be an empty string (Oakestra's schema requires

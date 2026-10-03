@@ -1,10 +1,11 @@
-"""Interactive playground: a browser UI around `SLASession`, mounted with `add_playground`.
+"""Interactive playground API: session routes around `SLASession`, mounted with `add_playground`.
 
-Kept separate from `server.py` so the plain generate/validate API has no playground code in
-it - `serve --playground` is the only thing that pulls this module in.
+The browser UI is the separate frontend/ app, which talks to these routes.
+
+Kept separate from `server.py` because these routes hold per-session state in memory, while
+the generate/validate API is stateless.
 """
 
-import importlib.resources
 import threading
 import time
 import uuid
@@ -13,8 +14,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Response
-from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from .generator import Draft, SLAGenerationError, SLASession
@@ -41,7 +41,7 @@ class _Entry:
 
 
 def add_playground(
-    app: FastAPI, structured_llm_factory: Callable[[str], Any], *, model: str | None = None
+    app: FastAPI, structured_llm_factory: Callable[[str | None], Any], *, model: str | None = None
 ) -> None:
     """Register the playground routes on `app`.
 
@@ -115,28 +115,15 @@ def add_playground(
             entry.session.on_attempt = None
             entry.lock.release()
 
-    # Resolved through the package rather than a filesystem path, so it works the same from
-    # a source checkout and an installed wheel.
-    app.mount(
-        "/playground/static",
-        StaticFiles(packages=[(__package__, "static/playground")]),
-        name="playground-static",
-    )
-
-    page = (importlib.resources.files(__package__) / "static/playground/index.html").read_text()
-
-    # Same reason as the comment in server.py: plain `def`, not `async def`, so FastAPI
-    # runs these in its thread pool instead of blocking the event loop on the LLM call.
-    @app.get("/playground", response_class=HTMLResponse)
-    def playground_page() -> HTMLResponse:
-        return HTMLResponse(page)
-
-    # The page shows which model it's talking to, since comparing models is most of what the
+    # The UI shows which model it's talking to, since comparing models is most of what the
     # playground gets used for.
     @app.get("/playground/info")
     def playground_info() -> dict[str, Any]:
         return {"model": model}
 
+    # This and the answer route stay plain `def`, not `async def`, for the same reason as the
+    # routes in server.py: FastAPI runs them in its thread pool instead of blocking the event
+    # loop on the LLM call.
     @app.post(
         "/playground/sessions",
         responses={
@@ -148,7 +135,7 @@ def add_playground(
         session_id = uuid.uuid4().hex
         session = SLASession(
             structured_llm=structured_llm_factory(request.method),
-            customer_id=request.customer_id,
+            customer_id=request.resolved_customer_id(),
             max_retries=request.max_retries,
             check_images=request.check_images,
         )

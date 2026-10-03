@@ -6,3 +6,4 @@
 tests
 Dockerfile
 compose.yaml
+frontend
