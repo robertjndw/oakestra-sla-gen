@@ -1,8 +1,5 @@
 """Playground HTTP API tests with a fake structured-output runnable, no network involved."""
 
-import posixpath
-import re
-
 from fastapi.testclient import TestClient
 from helpers import COMPOSE_YAML, FakeStructuredLLM, _ok, _request
 from langchain_core.messages import HumanMessage
@@ -11,54 +8,21 @@ from oakestra_sla_gen.models import Clarification
 from oakestra_sla_gen.server import create_app
 
 
-def _client(responses, playground=True):
+def _client(responses):
     fake = FakeStructuredLLM(responses)
-    return TestClient(create_app(lambda method: fake, playground=playground)), fake
-
-
-def test_playground_page_served_when_enabled():
-    client, _ = _client([])
-
-    response = client.get("/playground")
-
-    assert response.status_code == 200
-    assert "text/html" in response.headers["content-type"]
-
-
-def test_playground_assets_and_module_imports_resolve():
-    # There's no bundler, so a typo in a <link>, <script> or import path only shows up as a
-    # blank page in the browser. Follow every reference from the page to catch that here.
-    client, _ = _client([])
-    page = client.get("/playground").text
-    pending = re.findall(r'(?:href|src)="(/playground/static/[^"]+)"', page)
-    assert any(url.endswith(".css") for url in pending)
-    assert any(url.endswith(".js") for url in pending)
-
-    seen = set()
-    while pending:
-        url = pending.pop()
-        if url in seen:
-            continue
-        seen.add(url)
-        response = client.get(url)
-        assert response.status_code == 200, url
-        if url.endswith(".js"):
-            assert "javascript" in response.headers["content-type"], url
-            for spec in re.findall(r'^import .*?from "(\.[^"]+)";', response.text, re.M | re.S):
-                pending.append(posixpath.normpath(posixpath.join(posixpath.dirname(url), spec)))
-
-    assert len([url for url in seen if url.endswith(".js")]) > 1
+    return TestClient(create_app(lambda method: fake)), fake
 
 
 def test_playground_info_reports_the_model():
     fake = FakeStructuredLLM([])
-    client = TestClient(create_app(lambda method: fake, playground=True, model="qwen/qwen3.8-27b"))
+    client = TestClient(create_app(lambda method: fake, model="qwen/qwen3.8-27b"))
 
     assert client.get("/playground/info").json() == {"model": "qwen/qwen3.8-27b"}
 
 
-def test_playground_page_404_when_not_enabled():
-    client, _ = _client([], playground=False)
+def test_playground_html_page_is_gone():
+    # The UI moved to the separate frontend; the API must not serve a page of its own.
+    client, _ = _client([])
 
     assert client.get("/playground").status_code == 404
 

@@ -250,11 +250,6 @@ def _serve_command(argv: list[str]) -> int:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
     _add_llm_arguments(parser)
-    parser.add_argument(
-        "--playground",
-        action="store_true",
-        help="Also serve the browser playground at /playground.",
-    )
     args = parser.parse_args(argv)
 
     # Imported here so the CLI keeps working when the `server` extra isn't installed.
@@ -276,11 +271,8 @@ def _serve_command(argv: list[str]) -> int:
     # than per request.
     app = create_app(
         functools.cache(lambda method: build_structured_llm(llm, method=method)),
-        playground=args.playground,
         model=args.model,
     )
-    if args.playground:
-        print(f"playground at http://{args.host}:{args.port}/playground", file=sys.stderr)
     uvicorn.run(app, host=args.host, port=args.port)
     return 0
 

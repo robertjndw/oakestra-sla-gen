@@ -57,7 +57,6 @@ class ValidateResponse(BaseModel):
 def create_app(
     structured_llm_factory: Callable[[str], Any],
     *,
-    playground: bool = False,
     model: str | None = None,
 ) -> FastAPI:
     """Build the app around `structured_llm_factory(method)`.
@@ -111,11 +110,10 @@ def create_app(
         errors = validate_sla(sla)
         return ValidateResponse(valid=not errors, errors=errors)
 
-    if playground:
-        # Imported lazily: playground.py imports GenerateRequest back from this module, so
-        # importing it at module scope here would be a circular import at load time.
-        from .playground import add_playground
+    # Imported lazily: playground.py imports GenerateRequest back from this module, so
+    # importing it at module scope here would be a circular import at load time.
+    from .playground import add_playground
 
-        add_playground(app, structured_llm_factory, model=model)
+    add_playground(app, structured_llm_factory, model=model)
 
     return app
