@@ -17,20 +17,25 @@ one.
 uv run oakestra-sla-gen "a single nginx web server on port 80 with 1 cpu and 512MB memory" -o sla.json
 ```
 
+![The playground with a verified two-service draft: the model's assumptions on the left, the service map and per-service details on the right](docs/images/playground-draft.png)
+
 ## Features
 
 - **Verified output only** - every SLA is checked against Oakestra's JSON Schema plus semantic
   checks (ports, env vars, names, resources). Validation errors are fed back to the LLM, which
   retries until the SLA passes.
-- **Interactive clarification** - the model drafts what it can and asks about what it's unsure
+- **Asks instead of guessing** - the model drafts what it can and asks about what it's unsure
   of, showing the assumption it used. Vague descriptions get questions, not invented apps.
-- **Docker Compose translation** - turn an existing `compose.yaml` into an Oakestra SLA.
+- **Docker Compose translation** - turn an existing `compose.yaml` into an Oakestra SLA, with
+  service references rewritten to Oakestra service IPs.
 - **Edit existing SLAs** - start from an SLA you already have and change it in plain language.
 - **Image checks** - container images are looked up in their registry, so hallucinated image
   names are caught.
+- **Browser playground** - chat with the model, see the services on a map, edit the JSON by
+  hand with live validation, and reopen past SLAs from the history.
 - **Any OpenAI-compatible LLM** - works with local models via LM Studio as well as hosted APIs.
-- **CLI, HTTP API and browser playground** - use it from a terminal, a script, or a web UI.
-- **Runs as an Oakestra addon** - deploy it next to your root orchestrator.
+- **CLI, HTTP API or Oakestra addon** - use it from a terminal or a script, or deploy it next
+  to your root orchestrator.
 
 ## Contents
 
@@ -42,17 +47,18 @@ uv run oakestra-sla-gen "a single nginx web server on port 80 with 1 cpu and 512
 - [Existing SLA input](#existing-sla-input)
 - [HTTP API](#http-api)
 - [Playground](#playground)
-- [Frontend](#frontend)
 - [Deployment](#deployment)
 - [How it works](#how-it-works)
 - [Development](#development)
 
 ## Requirements
 
-- Python 3.12+ and [uv](https://docs.astral.sh/uv/)
+- Python 3.12+ and [uv](https://docs.astral.sh/uv/) for the CLI and API, or Docker to run the
+  API and playground without a local Python setup
 - An OpenAI-compatible LLM endpoint. The defaults target a local
   [LM Studio](https://lmstudio.ai) server at `http://127.0.0.1:1234/v1` running
   `qwen/qwen3.8-27b`; see [Configuration](#configuration) to point it elsewhere.
+- Node.js 24 and [pnpm](https://pnpm.io), only to work on the playground frontend
 
 ## Quick start
 
@@ -156,9 +162,7 @@ are printed and the command exits with `3`.
 | `-o`, `--output` | | stdout | Write the SLA to a file |
 | `-v`, `--verbose` | | off | Log each attempt and its errors to stderr |
 
-Why `prompt` and `qwen/qwen3.8-27b` are the defaults is covered in the
-[design notes](docs/design.md#structured-output-methods). For faster but less accurate
-results, try `--model openai/gpt-oss-20b`.
+For faster but less accurate results, try `--model openai/gpt-oss-20b`.
 
 Which method to use depends on the LLM server. `prompt` works everywhere and is the safe choice
 for LM Studio and other local servers, whose constrained decoding can silently drop or garble
@@ -250,56 +254,56 @@ curl -X POST localhost:8000/generate -H 'content-type: application/json' \
 
 ## Playground
 
-`serve` always includes the playground session API (`/playground/info`, `/playground/sessions`).
-The browser UI for the interactive draft-and-answer loop is the separate [frontend](#frontend);
-the API doesn't serve any HTML. For local development, run both:
+The playground is a browser UI for the same draft-and-answer loop as the CLI's interactive
+mode. The quickest way to run it is `docker compose up --build` and then
+<http://localhost:8080> (see [Docker](#docker)). To run it from source, see
+[Frontend](#frontend).
 
-```sh
-uv run oakestra-sla-gen serve    # API on http://127.0.0.1:8000
-pnpm --dir frontend install && pnpm --dir frontend dev    # then open http://localhost:5173
-```
+![The playground before the first message, with example prompts to start from](docs/images/playground-empty.png)
 
-The dev server proxies `/api` to `127.0.0.1:8000`.
-
-- **Conversation (left pane)** - describe your app, or upload or drag-and-drop a compose file
-  or an existing SLA with an optional note, then keep changing the draft through the chat.
-  Each round shows whether the draft passed validation, what changed, and the model's open
-  questions. Keep each assumption or answer it, then update or accept the
-  draft.
+- **Conversation (left pane)** - describe your app, pick one of the examples, or upload or
+  drop a compose file or an existing SLA with an optional note. Then keep changing the draft
+  through the chat. Each round shows whether the draft passed validation, what changed, and
+  the model's open questions. Keep each assumption or answer it, then update or accept the
+  draft. If no valid SLA comes out of a round, you can load the last attempt into the code
+  view and fix it by hand.
 - **Visual view (right pane)** - a map of the services, what's reachable from outside and
   which service references another's service IP, followed by a section per service with
   changed fields and validation problems marked.
 - **Code view (right pane)** - the editable SLA JSON, re-validated as you type. Clicking a
-  problem jumps to its line.
+  problem jumps to its line. If the model sends a new draft while you have unsaved edits, you
+  choose which one to keep.
+- **Settings (top bar)** - attempts per round, the customer ID and whether to check that
+  images exist. They lock once a session starts; **New session** unlocks them. The model and
+  output method are server settings, see [HTTP API](#http-api).
 - **History (top bar)** - keeps the latest draft of each session (with your hand edits) in the
   browser's local storage, up to 20 entries. Opening one starts a new session from that SLA,
   because server sessions expire after an hour. Entries can be copied, downloaded or deleted.
   Nothing leaves the browser, but any secrets in the SLAs are stored there until you delete them.
 
+The settings and the current conversation also survive a page reload. The UI follows the
+system's light or dark mode.
+
+![The code view showing the editable SLA JSON for the same draft](docs/images/playground-code.png)
+
 <details>
 <summary>Playground endpoints</summary>
+
+`serve` always includes these. The API doesn't serve any HTML; the UI is the separate
+[frontend](#frontend).
 
 | Endpoint | Description |
 |---|---|
 | `POST /playground/sessions` | Start a session. Same fields as `POST /generate`, plus `check_images`. Returns `{session_id, sla, questions, attempts}`. |
-| `POST /playground/sessions/{id}/answer` | Continue a session with `{text}`. Returns the same shape. |
+| `POST /playground/sessions/{id}/answer` | Continue a session with `{text}`. Returns the same shape. `409` while a turn is still running. |
 | `DELETE /playground/sessions/{id}` | Drop a session. |
 | `GET /playground/info` | Returns `{model}`, shown in the UI header. |
 
-Sessions live only in the server process's memory. They don't survive a restart, aren't shared
-across worker processes, and are capped in count and idle time, oldest evicted first.
+Sessions live only in the server process's memory. They don't survive a restart and aren't
+shared across worker processes. At most 32 are kept, each for up to an hour of inactivity,
+oldest evicted first.
 
 </details>
-
-## Frontend
-
-The playground UI lives in `frontend/`: Vite, React 19, TypeScript, Tailwind, shadcn/ui,
-ai-elements and CodeMirror. Scripts, run from `frontend/` (or with `pnpm --dir frontend`):
-`dev`, `build`, `lint`, `typecheck` and `test`.
-
-In production it runs as an nginx container on port 8080 that serves the build and proxies
-`/api/*` to the API with the prefix stripped. The upstream is set at runtime with
-`API_UPSTREAM`, so the browser only ever talks to one origin.
 
 ## Deployment
 
@@ -385,11 +389,9 @@ it off 8000 or 8080.
 5. A session wraps this into a conversation, which the CLI's interactive mode and the
    playground build on.
 
-The [design notes](docs/design.md) cover the pipeline in more detail, where Oakestra's docs and
-code disagree about the SLA format, and why the default structured output method and model
-were chosen.
-
 ## Development
+
+### Backend
 
 ```sh
 uv sync
@@ -413,7 +415,26 @@ The code lives in `src/oakestra_sla_gen/`:
 | `prompts.py` | System and correction prompts |
 | `server.py`, `playground.py` | HTTP API and playground session API |
 
-The browser playground is a separate project in `frontend/`, see [Frontend](#frontend).
+`tests/fixtures/` holds SLA fixtures vendored from Oakestra. The `sla_correct_*` ones must pass
+validation and the `sla_flawed_*` ones must fail it.
 
-`tests/fixtures/` holds SLA fixtures vendored from Oakestra; see the
-[design notes](docs/design.md#test-fixtures) for how they're used.
+### Frontend
+
+The playground UI lives in `frontend/`: Vite, React 19, TypeScript, Tailwind, shadcn/ui,
+ai-elements, React Flow and CodeMirror. To run it against a local API:
+
+```sh
+uv run oakestra-sla-gen serve    # API on http://127.0.0.1:8000
+pnpm --dir frontend install
+pnpm --dir frontend dev          # then open http://localhost:5173
+```
+
+The dev server proxies `/api` to `127.0.0.1:8000`. Other scripts, run from `frontend/` (or
+with `pnpm --dir frontend`): `build`, `lint`, `typecheck` and `test`.
+
+In production it runs as an nginx container on port 8080 that serves the build and proxies
+`/api/*` to the API with the prefix stripped. The upstream is set at runtime with
+`API_UPSTREAM`, so the browser only ever talks to one origin.
+
+CI runs all of the checks above (except the `llm` tests) on pull requests and pushes to `main`,
+then builds both images and publishes them from `main` and `v*` tags.
