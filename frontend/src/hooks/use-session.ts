@@ -86,6 +86,11 @@ export interface SessionState {
   restoredInput: RestoredInput | null;
   /** Bumped when the UI should switch to the Code view. */
   codeViewRequest: number;
+  /**
+   * Title of the history entry the editor was opened from. Until a session exists, the editor
+   * text goes with the first message as the SLA to start from.
+   */
+  historySeed: string | null;
   nextId: number;
 }
 
@@ -113,6 +118,7 @@ export type SessionAction =
   | { type: "accept" }
   | { type: "keep-refining" }
   | { type: "new-session"; token: number }
+  | { type: "open-history"; token: number; title: string; sla: string }
   | { type: "load-candidate"; sla: Sla }
   | { type: "set-editor-text"; text: string }
   | { type: "reset-to-model" }
@@ -137,6 +143,7 @@ export function initialState(): SessionState {
     requestToken: 0,
     restoredInput: null,
     codeViewRequest: 0,
+    historySeed: null,
     nextId: 1,
   };
 }
@@ -192,6 +199,10 @@ function applyResponse(
   const unchangedDraft = state.modelSla ? state.draftCount : null;
 
   if (res.status === 200 && typeof body.session_id === "string") {
+    // A reopened history SLA went out with the first message, edits and all, so what was sent
+    // becomes the baseline. Otherwise those edits would count as unsent hand edits and hold back
+    // the draft the model built from them.
+    if (file?.origin === "history") base.baselineText = file.text;
     const sla = body.sla ?? null;
     const questions = body.questions ?? [];
     const attempts = body.attempts ?? [];
@@ -344,6 +355,16 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
       // Settings outlive the conversation: people compare runs across sessions,
       // and the settings popover keeps its own copy of the retries field that would go stale.
       return { ...initialState(), settings: state.settings, requestToken: action.token };
+    case "open-history":
+      // Making it the baseline keeps it from counting as a hand edit, and "Reset" goes back to it.
+      return {
+        ...initialState(),
+        settings: state.settings,
+        requestToken: action.token,
+        editedSla: action.sla,
+        baselineText: action.sla,
+        historySeed: action.title,
+      };
     case "load-candidate":
       // The baseline stays on the last draft that passed, so "Reset to model draft" goes back to it.
       return {
@@ -384,6 +405,8 @@ export interface SessionApi {
   accept: () => void;
   keepRefining: () => void;
   newSession: () => void;
+  /** Ends the current session and puts a saved SLA in the editor to continue from. */
+  openFromHistory: (entry: { title: string; sla: string }) => void;
   /** "Fix the last attempt by hand". */
   loadCandidate: (sla: Sla) => void;
   setEditorText: (text: string) => void;
@@ -427,7 +450,8 @@ export function useSessionController(init: () => SessionState = initialState): S
       const message = text.trim();
       const file = !sessionId && inputFile ? inputFile : null;
       if (!message && !file) return;
-      const userText = file ? `Uploaded ${file.name}` + (message ? `\n\n${message}` : "") : message;
+      const fileLine = file?.origin === "history" ? `Continued ${file.name} from the history` : `Uploaded ${file?.name}`;
+      const userText = file ? fileLine + (message ? `\n\n${message}` : "") : message;
       await run(message, {
         userText,
         fileName: file?.name,
@@ -458,6 +482,15 @@ export function useSessionController(init: () => SessionState = initialState): S
     dispatch({ type: "new-session", token });
   }, [sessionId]);
 
+  const openFromHistory = useCallback(
+    (entry: { title: string; sla: string }) => {
+      const token = ++tokenRef.current;
+      if (sessionId) void deleteSession(sessionId);
+      dispatch({ type: "open-history", token, title: entry.title, sla: entry.sla });
+    },
+    [sessionId],
+  );
+
   return {
     state,
     settingsLocked: !!sessionId,
@@ -467,6 +500,7 @@ export function useSessionController(init: () => SessionState = initialState): S
     accept: useCallback(() => dispatch({ type: "accept" }), []),
     keepRefining: useCallback(() => dispatch({ type: "keep-refining" }), []),
     newSession,
+    openFromHistory,
     loadCandidate: useCallback((sla: Sla) => dispatch({ type: "load-candidate", sla }), []),
     setEditorText: useCallback((text: string) => dispatch({ type: "set-editor-text", text }), []),
     resetToModel: useCallback(() => dispatch({ type: "reset-to-model" }), []),

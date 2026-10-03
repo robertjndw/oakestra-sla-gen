@@ -89,4 +89,6 @@ export interface InputFile {
   name: string;
   text: string;
   kind: InputFileKind;
+  /** Set for an SLA reopened from the history rather than uploaded. */
+  origin?: "history";
 }

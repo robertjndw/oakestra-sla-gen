@@ -18,14 +18,24 @@ interface Props {
   onAnswersChange: (answers: QuestionAnswer[]) => void;
   loadCandidate: (sla: Sla) => void;
   newSession: () => void;
+  /** Title of the SLA reopened from the history, before the first message. */
+  historySeed: string | null;
   onPickExample: (text: string) => void;
 }
 
-export function Thread({ rounds, onPickExample, ...rest }: Props) {
+export function Thread({ rounds, onPickExample, historySeed, ...rest }: Props) {
   return (
     <Conversation className="min-h-0 flex-1" aria-live="polite" aria-label="Conversation">
       <ConversationContent className="gap-4">
-        {rounds.length === 0 ? (
+        {rounds.length === 0 && historySeed !== null ? (
+          <ConversationEmptyState className="items-start justify-start gap-2 p-2 text-left">
+            <h1 className="text-xl font-semibold tracking-tight">Continue from the history</h1>
+            <p className="text-muted-foreground text-sm leading-relaxed">
+              &ldquo;{historySeed}&rdquo; is open on the right. Describe a change to keep working on it with the
+              model, or just download it. Any edits you make in the Code view are sent with your first message.
+            </p>
+          </ConversationEmptyState>
+        ) : rounds.length === 0 ? (
           <ConversationEmptyState className="items-start justify-start gap-4 p-2 text-left">
             <div className="space-y-2">
               <h1 className="text-xl font-semibold tracking-tight">Describe what you want to deploy</h1>

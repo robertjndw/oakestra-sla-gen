@@ -1,5 +1,5 @@
 import { useRef, useState, type DragEvent, type KeyboardEvent, type RefObject } from "react";
-import { FileTextIcon, PaperclipIcon, XIcon } from "lucide-react";
+import { FileTextIcon, HistoryIcon, PaperclipIcon, XIcon } from "lucide-react";
 import { toast } from "sonner";
 import {
   PromptInput,
@@ -32,20 +32,28 @@ interface Props {
 }
 
 export function Composer({ text, onTextChange, inputFile, onInputFileChange, form, inputRef }: Props) {
-  const { state, settingsLocked, send, answer, accept } = useSessionContext();
+  const { state, settingsLocked, send, answer, accept, newSession } = useSessionContext();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
 
   const { turnRunning } = state;
   // Only the first message can carry a file.
   const canAttach = !settingsLocked && !turnRunning;
+  // A reopened history SLA is read from the editor at send time, so edits made after opening
+  // it are sent too. An upload still wins. It is hidden while the first message is out, like an
+  // upload, so its remove button can't start over under a running turn.
+  const seedFile: InputFile | null =
+    !state.sessionId && !turnRunning && state.historySeed !== null && state.editedSla.trim()
+      ? { name: state.historySeed, text: state.editedSla, kind: "sla", origin: "history" }
+      : null;
+  const attached = inputFile ?? seedFile;
   const model = composerModel({
     sessionId: state.sessionId,
     turnRunning,
     hasModelDraft: !!state.modelSla,
     form,
     text,
-    inputFile,
+    inputFile: attached,
   });
 
   const attach = async (file: File) => {
@@ -61,7 +69,7 @@ export function Composer({ text, onTextChange, inputFile, onInputFileChange, for
   const submit = () => {
     if (!model.canSend) return;
     const extra = text;
-    const file = inputFile;
+    const file = attached;
     onTextChange("");
     onInputFileChange(null);
     if (form) void answer(model.message, { answers: form.answers, extra });
@@ -106,22 +114,26 @@ export function Composer({ text, onTextChange, inputFile, onInputFileChange, for
       }}
     >
       <PromptInput onSubmit={submit} aria-label="Message composer">
-        {!settingsLocked && inputFile && (
+        {!settingsLocked && attached && (
           <PromptInputHeader className="px-3 pt-3">
             <Badge variant="secondary" className="h-6 max-w-full gap-1.5 pr-0.5">
-              <FileTextIcon aria-hidden />
-              <span data-testid="file-chip-kind">{KIND_LABEL[inputFile.kind]}</span>
+              {attached.origin === "history" ? <HistoryIcon aria-hidden /> : <FileTextIcon aria-hidden />}
+              <span data-testid="file-chip-kind">
+                {attached.origin === "history" ? "From history" : KIND_LABEL[attached.kind]}
+              </span>
               <span className="truncate font-normal" data-testid="file-chip-name">
-                {inputFile.name}
+                {attached.name}
               </span>
               <Button
                 type="button"
                 variant="ghost"
                 size="icon-xs"
                 className="size-5 rounded-full"
-                aria-label={`Remove ${inputFile.name}`}
+                aria-label={`Remove ${attached.name}`}
                 onClick={() => {
-                  onInputFileChange(null);
+                  // The reopened SLA lives in the editor, so dropping it means starting over.
+                  if (attached === seedFile) newSession();
+                  else onInputFileChange(null);
                   inputRef.current?.focus();
                 }}
               >

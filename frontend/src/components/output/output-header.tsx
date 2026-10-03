@@ -19,6 +19,8 @@ export interface HeaderProps {
   hasSla: boolean;
   draftCount: number;
   edited: boolean;
+  /** The editor holds an SLA reopened from the history and the model hasn't drafted yet. */
+  fromHistory: boolean;
   accepted: boolean;
   validation: ValidationResult;
   mode: OutputMode;

@@ -17,6 +17,7 @@ function fakeApi(): SessionApi {
     accept: noop,
     keepRefining: noop,
     newSession: noop,
+    openFromHistory: noop,
     loadCandidate: noop,
     setEditorText: noop,
     resetToModel: noop,

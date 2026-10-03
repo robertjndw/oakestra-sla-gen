@@ -20,13 +20,7 @@ export function ConversationPane() {
   const [answersById, setAnswersById] = useState<Record<number, QuestionAnswer[]>>({});
 
   // Adjusting state while rendering (not in an effect) avoids a frame with stale composer text.
-  const [seenRestore, setSeenRestore] = useState<RestoredInput | null>(null);
-  const restored = state.restoredInput;
-  if (restored && restored !== seenRestore) {
-    setSeenRestore(restored);
-    setText(restored.text);
-    setInputFile(restored.file);
-  }
+  // The reset comes first so a restore in the same render isn't wiped by it.
   const [prevSessionId, setPrevSessionId] = useState(state.sessionId);
   if (prevSessionId !== state.sessionId) {
     setPrevSessionId(state.sessionId);
@@ -35,6 +29,21 @@ export function ConversationPane() {
       setInputFile(null);
       setAnswersById({});
     }
+  }
+  // Opening a history entry before any session exists leaves the session id alone, but an upload
+  // still attached would win over the reopened SLA at send time.
+  const [prevSeed, setPrevSeed] = useState(state.historySeed);
+  if (prevSeed !== state.historySeed) {
+    setPrevSeed(state.historySeed);
+    if (state.historySeed !== null) setInputFile(null);
+  }
+  const [seenRestore, setSeenRestore] = useState<RestoredInput | null>(null);
+  const restored = state.restoredInput;
+  if (restored && restored !== seenRestore) {
+    setSeenRestore(restored);
+    setText(restored.text);
+    // A history SLA isn't a real file. The composer attaches it straight from the editor.
+    setInputFile(restored.file?.origin === "history" ? null : restored.file);
   }
 
   const activeRound = selectActiveForm(state);
@@ -58,6 +67,7 @@ export function ConversationPane() {
         onAnswersChange={(a) => activeRound && setAnswersById((m) => ({ ...m, [activeRound.id]: a }))}
         loadCandidate={loadCandidate}
         newSession={newSession}
+        historySeed={state.sessionId ? null : state.historySeed}
         onPickExample={pickExample}
       />
       <div className="shrink-0 border-t bg-background p-3">

@@ -15,9 +15,9 @@ interface Props {
   text: string;
   items: ProblemItem[];
   status: string;
-  /** A model draft exists to go back to. */
-  hasModelDraft: boolean;
-  /** The text differs from that draft. */
+  /** Names the text to go back to (a model draft or a saved SLA); null hides the button. */
+  resetLabel: string | null;
+  /** The text differs from it. */
   canReset: boolean;
   onChange: (text: string) => void;
   onReset: () => void;
@@ -69,7 +69,7 @@ const staticExtensions = [
   EditorView.contentAttributes.of({ "aria-label": "SLA JSON", spellcheck: "false" }),
 ];
 
-export default function CodeView({ text, items, status, hasModelDraft, canReset, onChange, onReset }: Props) {
+export default function CodeView({ text, items, status, resetLabel, canReset, onChange, onReset }: Props) {
   const dark = useIsDark();
   const [view, setView] = useState<EditorView | null>(null);
   const theme = useMemo(() => editorTheme(dark), [dark]);
@@ -110,9 +110,9 @@ export default function CodeView({ text, items, status, hasModelDraft, canReset,
         <p className="text-sm text-muted-foreground" aria-live="polite">
           {status}
         </p>
-        {hasModelDraft && (
+        {resetLabel && (
           <Button type="button" variant="outline" size="sm" disabled={!canReset} onClick={onReset}>
-            Reset to model draft
+            {resetLabel}
           </Button>
         )}
       </div>

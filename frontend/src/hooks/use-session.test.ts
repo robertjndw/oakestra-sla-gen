@@ -228,4 +228,16 @@ describe("accept, settings, new session", () => {
     expect(s.settings.maxRetries).toBe(5);
     expect(run(s, { type: "set-settings", settings: initialState().settings }).settings.maxRetries).toBe(3);
   });
+
+  it("opening from the history replaces the session with the saved SLA as the baseline", () => {
+    const s = run(withDraft(), { type: "open-history", token: 6, title: "shop", sla: "{}" });
+    expect(s).toEqual({
+      ...initialState(),
+      requestToken: 6,
+      editedSla: "{}",
+      baselineText: "{}",
+      historySeed: "shop",
+    });
+    expect(isEdited(s)).toBe(false);
+  });
 });

@@ -271,6 +271,10 @@ The dev server proxies `/api` to `127.0.0.1:8000`.
   changed fields and validation problems marked.
 - **Code view (right pane)** - the editable SLA JSON, re-validated as you type. Clicking a
   problem jumps to its line.
+- **History (top bar)** - keeps the latest draft of each session (with your hand edits) in the
+  browser's local storage, up to 20 entries. Opening one starts a new session from that SLA,
+  because server sessions expire after an hour. Entries can be copied, downloaded or deleted.
+  Nothing leaves the browser, but any secrets in the SLAs are stored there until you delete them.
 
 <details>
 <summary>Playground endpoints</summary>

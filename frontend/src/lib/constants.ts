@@ -9,6 +9,12 @@ export const SETTINGS_STORAGE_KEY = "oakestra-playground-settings";
 /** sessionStorage, so a reload keeps the conversation but a second tab starts fresh. */
 export const SESSION_STORAGE_KEY = "oakestra-playground-session";
 export const COMPOSER_STORAGE_KEY = "oakestra-playground-composer";
+export const HISTORY_STORAGE_KEY = "oakestra-playground-history";
+
+/** Each entry is at most an upload-sized SLA, so this stays well inside the ~5 MB quota. */
+export const MAX_HISTORY_ENTRIES = 20;
+/** Hand edits are saved to the history once typing pauses, not on every keystroke. */
+export const HISTORY_SAVE_DEBOUNCE_MS = 1000;
 
 export const VALIDATE_DEBOUNCE_MS = 400;
 

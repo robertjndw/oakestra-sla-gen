@@ -19,9 +19,10 @@ import "./output.css";
 // CodeMirror is only needed once someone opens the Code tab.
 const CodeView = lazy(() => import("./code-view"));
 
-function codeStatus(parseError: boolean, edited: boolean, hasText: boolean): string {
+function codeStatus(parseError: boolean, edited: boolean, hasText: boolean, fromHistory: boolean): string {
   if (parseError) return "";
   if (edited) return "Edited by hand. Validated as you type.";
+  if (fromHistory) return "As saved in the history.";
   return hasText ? "This is the draft as the model wrote it." : "";
 }
 
@@ -38,8 +39,12 @@ export function OutputPane() {
   const session = useSessionContext();
   const { state, setEditorText, resetToModel } = session;
   const text = state.editedSla;
+  // Before the first draft, a baseline can only be an SLA reopened from the history. It passed
+  // when it was saved, but the schema or an image may have changed since, so it is checked again.
+  const fromHistory = state.draftCount === 0 && state.historySeed !== null;
+  const trustedText = fromHistory ? "" : state.baselineText;
   // No rounds means a new session just started (or none ever did).
-  const validation = useValidation(text, state.baselineText, state.rounds.length === 0);
+  const validation = useValidation(text, trustedText, state.rounds.length === 0);
   const [mode, setMode] = useLocalStorageState<OutputMode>(MODE_STORAGE_KEY, "visual", isOutputMode);
 
   // "Fix the last attempt by hand" bumps the request; adjust during render rather than in an effect.
@@ -71,6 +76,7 @@ export function OutputPane() {
         hasSla={sla !== null}
         draftCount={state.draftCount}
         edited={edited}
+        fromHistory={fromHistory}
         accepted={state.accepted}
         validation={validation}
         mode={mode}
@@ -107,8 +113,8 @@ export function OutputPane() {
             <CodeView
               text={text}
               items={items}
-              status={codeStatus(parseError !== null, edited, hasText)}
-              hasModelDraft={state.baselineText !== ""}
+              status={codeStatus(parseError !== null, edited, hasText, fromHistory)}
+              resetLabel={!state.baselineText ? null : fromHistory ? "Reset to saved SLA" : "Reset to model draft"}
               canReset={edited}
               onChange={setEditorText}
               onReset={resetToModel}

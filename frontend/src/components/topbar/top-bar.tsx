@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSessionContext } from "@/hooks/session-context";
 import { useModelName } from "@/hooks/use-info";
+import { HistoryPopover } from "./history-popover";
 import { Logo } from "./logo";
 import { SettingsPopover } from "./settings-popover";
 
@@ -47,6 +48,7 @@ export function TopBar() {
             <TooltipContent>Model the server generates with</TooltipContent>
           </Tooltip>
         )}
+        <HistoryPopover />
         <SettingsPopover />
         <Button variant="outline" size="sm" onClick={onNewSession}>
           New session

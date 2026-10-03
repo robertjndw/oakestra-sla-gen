@@ -26,6 +26,7 @@ type PersistedFields = Pick<
   | "baselineText"
   | "pendingDraft"
   | "accepted"
+  | "historySeed"
   | "nextId"
 >;
 
@@ -62,6 +63,8 @@ function isSnapshot(v: unknown): v is SessionSnapshot {
     typeof v.editedSla === "string" &&
     typeof v.baselineText === "string" &&
     typeof v.accepted === "boolean" &&
+    // Added without a version bump, so snapshots from before the history still restore.
+    (v.historySeed === undefined || v.historySeed === null || typeof v.historySeed === "string") &&
     typeof v.nextId === "number"
   );
 }
@@ -81,6 +84,7 @@ export function toSnapshot(s: SessionState): SessionSnapshot | null {
     baselineText: s.baselineText,
     pendingDraft: s.pendingDraft,
     accepted: s.accepted,
+    historySeed: s.historySeed,
     nextId: s.nextId,
   };
 }
@@ -91,7 +95,8 @@ export function toSnapshot(s: SessionState): SessionSnapshot | null {
  * into the composer because the server never confirmed a session for it.
  */
 export function fromSnapshot(snap: SessionSnapshot, storedSettings: Settings): SessionState {
-  const { version: _version, ...fields } = snap;
+  const { version: _version, ...rest } = snap;
+  const fields = { ...rest, historySeed: rest.historySeed ?? null };
   const pendingIdx = fields.rounds.findIndex((r) => r.kind === "pending");
   if (pendingIdx === -1) {
     return {

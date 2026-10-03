@@ -26,6 +26,7 @@ function fakeApi(state: Partial<SessionState> = {}): SessionApi {
     accept: noop,
     keepRefining: noop,
     newSession: noop,
+    openFromHistory: noop,
     loadCandidate: noop,
     setEditorText: noop,
     resetToModel: noop,
@@ -236,6 +237,27 @@ describe("Composer", () => {
     expect(screen.getByTestId("file-chip-name")).toHaveTextContent("my-sla.json");
     await user.click(screen.getByRole("button", { name: "Generate draft" }));
     expect(api.send).toHaveBeenCalledWith("", { name: "my-sla.json", text: sla, kind: "sla" });
+  });
+  it("sends an SLA reopened from the history as it is in the editor", async () => {
+    const user = userEvent.setup();
+    const api = fakeApi({ historySeed: "shop", editedSla: '{"edited":true}' });
+    wrap(<Harness api={api} />);
+    expect(screen.getByTestId("file-chip-kind")).toHaveTextContent("From history");
+    expect(screen.getByTestId("file-chip-name")).toHaveTextContent("shop");
+    await user.click(screen.getByRole("button", { name: "Generate draft" }));
+    expect(api.send).toHaveBeenCalledWith("", {
+      name: "shop",
+      text: '{"edited":true}',
+      kind: "sla",
+      origin: "history",
+    });
+  });
+  it("starts over when the SLA from the history is removed", async () => {
+    const user = userEvent.setup();
+    const api = fakeApi({ historySeed: "shop", editedSla: "{}" });
+    wrap(<Harness api={api} />);
+    await user.click(screen.getByRole("button", { name: "Remove shop" }));
+    expect(api.newSession).toHaveBeenCalled();
   });
   it("removes the attached file", async () => {
     const user = userEvent.setup();

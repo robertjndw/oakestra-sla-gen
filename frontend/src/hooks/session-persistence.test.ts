@@ -122,6 +122,23 @@ describe("toSnapshot / fromSnapshot", () => {
   });
 });
 
+describe("history seed", () => {
+  it("survives a reload", () => {
+    const s = run(initialState(), { type: "open-history", token: 1, title: "shop", sla: "{}" });
+    const restored = fromSnapshot(toSnapshot(s)!, initialState().settings);
+    expect(restored.historySeed).toBe("shop");
+    expect(restored.editedSla).toBe("{}");
+  });
+
+  it("defaults to none for snapshots saved before it existed", () => {
+    const { historySeed: _seed, ...old } = toSnapshot(withDraft())!;
+    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(old));
+    const restored = restoreSession();
+    expect(restored.sessionId).toBe("s1");
+    expect(restored.historySeed).toBeNull();
+  });
+});
+
 describe("restoreSession", () => {
   it("starts fresh with the saved settings", () => {
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(custom));
