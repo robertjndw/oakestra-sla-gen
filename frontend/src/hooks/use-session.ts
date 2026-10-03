@@ -4,12 +4,7 @@ import type { ApiResult, SessionResult } from "@/lib/api";
 import type { QuestionAnswer } from "@/lib/answers";
 import { DEFAULT_SETTINGS } from "@/lib/constants";
 import { describeChanges, diffSlas, firstDraftLine } from "@/lib/sla";
-import type { Attempt, Clarification, Settings, Sla } from "@/lib/types";
-
-export interface ComposeFile {
-  name: string;
-  text: string;
-}
+import type { Attempt, Clarification, InputFile, Settings, Sla } from "@/lib/types";
 
 /** What the user did with a question list when it was closed. */
 export interface FrozenAnswers {
@@ -19,7 +14,7 @@ export interface FrozenAnswers {
 }
 
 export type Round =
-  | { id: number; kind: "user"; text: string; composeName?: string }
+  | { id: number; kind: "user"; text: string; fileName?: string }
   | { id: number; kind: "pending"; first: boolean; startedAt: number }
   | {
       id: number;
@@ -65,7 +60,7 @@ export type QuestionRound = Extract<Round, { kind: "draft" | "ask" }>;
 
 export interface RestoredInput {
   text: string;
-  compose: ComposeFile | null;
+  file: InputFile | null;
 }
 
 export interface SessionState {
@@ -102,7 +97,7 @@ export type SessionAction =
       token: number;
       first: boolean;
       userText: string | null;
-      composeName?: string;
+      fileName?: string;
       /** Closes the open question list; null leaves it alone. */
       freeze: FrozenAnswers | null;
       now: number;
@@ -113,7 +108,7 @@ export type SessionAction =
       res: ApiResponse;
       first: boolean;
       message: string;
-      compose: ComposeFile | null;
+      file: InputFile | null;
     }
   | { type: "accept" }
   | { type: "keep-refining" }
@@ -190,7 +185,7 @@ function applyResponse(
   state: SessionState,
   action: Extract<SessionAction, { type: "response" }>,
 ): SessionState {
-  const { res, first, message, compose } = action;
+  const { res, first, message, file } = action;
   const body = res.body ?? {};
   const rounds = state.rounds.filter((r) => r.kind !== "pending");
   const base: SessionState = { ...state, rounds, turnRunning: false };
@@ -257,7 +252,7 @@ function applyResponse(
   // Nothing was saved for a failed first message, so hand both back for a retry.
   const restored: RestoredInput | null =
     first && !state.sessionId
-      ? { text: message, compose }
+      ? { text: message, file }
       : state.restoredInput;
 
   let round: Round;
@@ -317,7 +312,7 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
       let id = state.nextId;
       let rounds = freezeActiveForm(state.rounds, action.freeze);
       if (action.userText) {
-        rounds = [...rounds, { id: id++, kind: "user", text: action.userText, composeName: action.composeName }];
+        rounds = [...rounds, { id: id++, kind: "user", text: action.userText, fileName: action.fileName }];
       }
       rounds = [...rounds, { id: id++, kind: "pending", first: action.first, startedAt: action.now }];
       return {
@@ -375,8 +370,8 @@ export interface SessionApi {
   settingsLocked: boolean;
   /** Anything a "New session" would throw away. */
   hasUnacceptedWork: boolean;
-  /** First message or a free-text follow-up. Only the first message can carry a compose file. */
-  send: (text: string, composeFile?: ComposeFile | null) => Promise<void>;
+  /** First message or a free-text follow-up. Only the first message can carry a file. */
+  send: (text: string, inputFile?: InputFile | null) => Promise<void>;
   /**
    * Reply to the open questions. `formattedText` comes from formatAnswers; `details` lets the
    * thread show what was picked. `extra` is the free text typed beside the answers and is
@@ -405,7 +400,7 @@ export function useSessionController(): SessionApi {
   const run = useCallback(
     async (
       message: string,
-      opts: { userText: string | null; composeName?: string; compose: ComposeFile | null; freeze: FrozenAnswers | null },
+      opts: { userText: string | null; fileName?: string; file: InputFile | null; freeze: FrozenAnswers | null },
     ) => {
       if (turnRunning) return;
       const first = !sessionId;
@@ -415,30 +410,28 @@ export function useSessionController(): SessionApi {
         token,
         first,
         userText: opts.userText,
-        composeName: opts.composeName,
+        fileName: opts.fileName,
         freeze: opts.freeze,
         now: Date.now(),
       });
       const res = first
-        ? await startSession(settings, message, opts.compose?.text)
+        ? await startSession(settings, message, opts.file)
         : await answerSession(sessionId, message);
-      dispatch({ type: "response", token, res, first, message, compose: opts.compose });
+      dispatch({ type: "response", token, res, first, message, file: opts.file });
     },
     [turnRunning, sessionId, settings],
   );
 
   const send = useCallback(
-    async (text: string, composeFile?: ComposeFile | null) => {
+    async (text: string, inputFile?: InputFile | null) => {
       const message = text.trim();
-      const compose = !sessionId && composeFile ? composeFile : null;
-      if (!message && !compose) return;
-      const userText = compose
-        ? `Uploaded ${compose.name}` + (message ? `\n\n${message}` : "")
-        : message;
+      const file = !sessionId && inputFile ? inputFile : null;
+      if (!message && !file) return;
+      const userText = file ? `Uploaded ${file.name}` + (message ? `\n\n${message}` : "") : message;
       await run(message, {
         userText,
-        composeName: compose?.name,
-        compose,
+        fileName: file?.name,
+        file,
         // Free text sent beside an open question list closes it as "left to the model".
         freeze: { answers: [], keepAll: false },
       });
@@ -452,7 +445,7 @@ export function useSessionController(): SessionApi {
       const extra = details?.extra.trim() ?? "";
       await run(formattedText, {
         userText: extra || null,
-        compose: null,
+        file: null,
         freeze: { answers: details?.answers ?? [], keepAll: false },
       });
     },

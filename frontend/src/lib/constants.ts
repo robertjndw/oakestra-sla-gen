@@ -1,7 +1,8 @@
 import type { Settings } from "./types";
 
-/** Mirrors MAX_COMPOSE_CHARS in compose.py; checked here so a huge file fails fast. */
-export const MAX_COMPOSE_CHARS = 64_000;
+/** Mirrors MAX_COMPOSE_CHARS in compose.py and MAX_SLA_CHARS in existing_sla.py; checked here so a
+ * huge file fails fast. */
+export const MAX_UPLOAD_CHARS = 64_000;
 
 export const MODE_STORAGE_KEY = "oakestra-playground-mode";
 
@@ -15,7 +16,8 @@ export const MAX_RETRIES = 10;
 export const DEFAULT_SETTINGS: Settings = {
   method: "prompt",
   maxRetries: 3,
-  customerId: "Admin",
+  // Empty means "not chosen": the server keeps an uploaded SLA's own ID, otherwise uses Admin.
+  customerId: "",
   checkImages: true,
 };
 

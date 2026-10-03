@@ -3,11 +3,11 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { SessionContext } from "@/hooks/session-context";
-import { initialState, type ComposeFile, type SessionApi, type SessionState } from "@/hooks/use-session";
+import { initialState, type SessionApi, type SessionState } from "@/hooks/use-session";
 import { initialAnswers, type QuestionAnswer } from "@/lib/answers";
-import type { Clarification } from "@/lib/types";
+import type { Clarification, InputFile } from "@/lib/types";
 import { Composer } from "./composer";
-import { composerModel, readComposeFile } from "./composer-logic";
+import { composerModel, detectKind, readInputFile } from "./composer-logic";
 import { QuestionForm } from "./question-form";
 
 const questions: Clarification[] = [
@@ -36,15 +36,15 @@ function fakeApi(state: Partial<SessionState> = {}): SessionApi {
 
 function Harness({ api, form }: { api: SessionApi; form?: boolean }) {
   const [text, setText] = useState("");
-  const [file, setFile] = useState<ComposeFile | null>(null);
+  const [file, setFile] = useState<InputFile | null>(null);
   const answers = initialAnswers(questions);
   return (
     <SessionContext.Provider value={api}>
       <Composer
         text={text}
         onTextChange={setText}
-        composeFile={file}
-        onComposeFileChange={setFile}
+        inputFile={file}
+        onInputFileChange={setFile}
         form={form ? { questions, answers } : null}
         inputRef={createRef()}
       />
@@ -55,15 +55,22 @@ function Harness({ api, form }: { api: SessionApi; form?: boolean }) {
 const wrap = (n: ReactNode) => render(<>{n}</>);
 
 describe("composerModel", () => {
-  const base = { sessionId: null, turnRunning: false, hasModelDraft: false, form: null, text: "", composeFile: null };
+  const base = { sessionId: null, turnRunning: false, hasModelDraft: false, form: null, text: "", inputFile: null };
   it("cannot send nothing", () => {
     expect(composerModel(base).canSend).toBe(false);
   });
+  const compose: InputFile = { name: "a.yml", text: "x", kind: "compose" };
+  const sla: InputFile = { name: "sla.json", text: "{}", kind: "sla" };
   it("sends a compose file without text", () => {
-    expect(composerModel({ ...base, composeFile: { name: "a.yml", text: "x" } }).canSend).toBe(true);
+    expect(composerModel({ ...base, inputFile: compose }).canSend).toBe(true);
+  });
+  it("sends an SLA without text and asks what should change", () => {
+    const m = composerModel({ ...base, inputFile: sla });
+    expect(m.canSend).toBe(true);
+    expect(m.placeholder).toMatch(/^What should change\?/);
   });
   it("ignores a compose file once a session exists", () => {
-    const m = composerModel({ ...base, sessionId: "s", composeFile: { name: "a.yml", text: "x" } });
+    const m = composerModel({ ...base, sessionId: "s", inputFile: compose });
     expect(m.canSend).toBe(false);
     expect(m.label).toBe("Update draft");
   });
@@ -90,10 +97,19 @@ describe("composerModel", () => {
   });
   it("rejects oversized compose files", async () => {
     const big = new File(["a".repeat(64_001)], "big.yml");
-    const res = await readComposeFile(big);
+    const res = await readInputFile(big);
     expect(res.ok).toBe(false);
-    const ok = await readComposeFile(new File(["services: {}"], "ok.yml"));
-    expect(ok).toEqual({ ok: true, file: { name: "ok.yml", text: "services: {}" } });
+    const ok = await readInputFile(new File(["services: {}"], "ok.yml"));
+    expect(ok).toEqual({ ok: true, file: { name: "ok.yml", text: "services: {}", kind: "compose" } });
+  });
+  it("tells an SLA from a compose file by content", () => {
+    expect(detectKind("sla.json", '{"applications": []}')).toBe("sla");
+    expect(detectKind("whatever.txt", '{"sla_version": "v2.0"}')).toBe("sla");
+    expect(detectKind("compose.json", '{"services": {}}')).toBe("compose");
+    expect(detectKind("compose.yaml", "services:\n  web: {}")).toBe("compose");
+    expect(detectKind("list.json", "[1, 2]")).toBe("compose");
+    // Broken JSON falls back to the extension so the server reports the JSON error.
+    expect(detectKind("sla.json", "{broken")).toBe("sla");
   });
 });
 
@@ -153,5 +169,16 @@ describe("Composer", () => {
     await user.click(screen.getByRole("button", { name: "Send answers" }));
     expect(api.answer).toHaveBeenCalledTimes(1);
     expect(vi.mocked(api.answer).mock.calls[0][0]).toContain("Also: use tls");
+  });
+  it("uploads an existing SLA and sends it with the first message", async () => {
+    const user = userEvent.setup();
+    const api = fakeApi();
+    wrap(<Harness api={api} />);
+    const sla = '{"applications": [{"application_name": "web"}]}';
+    await user.upload(screen.getByLabelText("Docker compose file or SLA"), new File([sla], "my-sla.json"));
+    expect(await screen.findByTestId("file-chip-kind")).toHaveTextContent("SLA");
+    expect(screen.getByTestId("file-chip-name")).toHaveTextContent("my-sla.json");
+    await user.click(screen.getByRole("button", { name: "Generate draft" }));
+    expect(api.send).toHaveBeenCalledWith("", { name: "my-sla.json", text: sla, kind: "sla" });
   });
 });

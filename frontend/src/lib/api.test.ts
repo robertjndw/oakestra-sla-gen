@@ -31,17 +31,42 @@ describe("api", () => {
       .fn()
       .mockResolvedValue(new Response(JSON.stringify({ session_id: "s" }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
-    await startSession({ ...DEFAULT_SETTINGS, customerId: "  " }, "desc", "services: {}");
+    await startSession({ ...DEFAULT_SETTINGS, customerId: "  " }, "desc", {
+      name: "compose.yaml",
+      text: "services: {}",
+      kind: "compose",
+    });
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe("/api/playground/sessions");
     expect(JSON.parse(init.body)).toEqual({
       method: "prompt",
       max_retries: 3,
-      customer_id: "Admin",
       check_images: true,
       description: "desc",
       compose: "services: {}",
     });
+  });
+
+  it("sends an uploaded SLA under the sla key", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ session_id: "s" }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await startSession(DEFAULT_SETTINGS, "", { name: "sla.json", text: "{}", kind: "sla" });
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.sla).toBe("{}");
+    expect(body).not.toHaveProperty("compose");
+    // Left out so the server can keep the uploaded SLA's own customerID.
+    expect(body).not.toHaveProperty("customer_id");
+  });
+
+  it("sends a customer id only when one is set", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ session_id: "s" }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await startSession({ ...DEFAULT_SETTINGS, customerId: " acme " }, "desc");
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).customer_id).toBe("acme");
   });
 
   it("encodes the session id", async () => {

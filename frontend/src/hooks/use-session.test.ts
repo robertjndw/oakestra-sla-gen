@@ -34,7 +34,7 @@ const respond = (token: number, res: ApiResponse, first = true, message = "hi"):
   res,
   first,
   message,
-  compose: null,
+  file: null,
 });
 
 const ok = (sla: Sla | null, questions = [] as { topic: string; question: string; assumption: string | null }[]): ApiResponse => ({

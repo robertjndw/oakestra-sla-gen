@@ -77,6 +77,7 @@ export function SettingsPopover() {
             id="setting-customer"
             type="text"
             value={settings.customerId}
+            placeholder="Admin, or the uploaded SLA's own"
             disabled={settingsLocked}
             onChange={(e) => setSettings({ ...settings, customerId: e.target.value })}
           />

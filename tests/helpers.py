@@ -12,6 +12,32 @@ services:
       - "8080:80"
 """
 
+EXISTING_SLA_JSON = """\
+{
+  "sla_version": "v2.0",
+  "customerID": "Admin",
+  "applications": [
+    {
+      "applicationID": "",
+      "application_name": "web",
+      "application_namespace": "default",
+      "microservices": [
+        {
+          "microserviceID": "",
+          "microservice_name": "nginx",
+          "microservice_namespace": "default",
+          "virtualization": "container",
+          "code": "docker.io/library/nginx:1.25",
+          "port": "8080:80",
+          "vcpus": 1,
+          "memory": 128
+        }
+      ]
+    }
+  ]
+}
+"""
+
 
 def _microservice(name="nginx"):
     return {

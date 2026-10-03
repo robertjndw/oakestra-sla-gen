@@ -1,7 +1,7 @@
 """CLI tests with a fake session, no network or real TTY involved."""
 
 import pytest
-from helpers import COMPOSE_YAML
+from helpers import COMPOSE_YAML, EXISTING_SLA_JSON
 
 from oakestra_sla_gen import cli
 from oakestra_sla_gen.generator import Draft
@@ -155,6 +155,55 @@ def test_compose_flag_with_invalid_compose_exits_2(monkeypatch, tmp_path, capsys
 
     assert code == 2
     assert "error:" in capsys.readouterr().err
+
+
+def test_sla_flag_sends_the_sla_and_changes(monkeypatch, tmp_path):
+    sla_file = tmp_path / "sla.json"
+    sla_file.write_text(EXISTING_SLA_JSON)
+    fake = _patch_session(monkeypatch, [Draft(sla=_NGINX_SLA, questions=[])])
+
+    code = cli._generate_command(["add redis", "--sla", str(sla_file), "--no-interactive"])
+
+    assert code == 0
+    [(_, sent)] = fake.calls
+    assert EXISTING_SLA_JSON.strip() in sent
+    assert "Changes the user wants:\nadd redis" in sent
+
+
+@pytest.mark.parametrize(
+    ("flags", "expected"), [([], "acme"), (["--customer-id", "other"], "other")]
+)
+def test_sla_flag_keeps_the_uploaded_customer_id_unless_one_is_given(
+    monkeypatch, tmp_path, flags, expected
+):
+    monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+    sla_file = tmp_path / "sla.json"
+    sla_file.write_text(EXISTING_SLA_JSON.replace('"customerID": "Admin"', '"customerID": "acme"'))
+    fake = FakeSession([Draft(sla=_NGINX_SLA, questions=[])])
+    seen = {}
+    monkeypatch.setattr(cli, "SLASession", lambda **kwargs: seen.update(kwargs) or fake)
+
+    code = cli._generate_command(["--sla", str(sla_file), "--no-interactive", *flags])
+
+    assert code == 0
+    assert seen["customer_id"] == expected
+
+
+def test_sla_flag_with_invalid_json_exits_2(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+    sla_file = tmp_path / "sla.json"
+    sla_file.write_text("{nope")
+    _patch_session(monkeypatch, [])
+
+    code = cli._generate_command(["--sla", str(sla_file), "--no-interactive"])
+
+    assert code == 2
+    assert "invalid JSON" in capsys.readouterr().err
+
+
+def test_sla_and_compose_flags_are_mutually_exclusive():
+    with pytest.raises(SystemExit):
+        cli._generate_command(["--sla", "a.json", "--compose", "b.yaml"])
 
 
 # -- interactive loop ----------------------------------------------------------

@@ -1,7 +1,8 @@
-import { API_PREFIX, DEFAULT_SETTINGS } from "./constants";
+import { API_PREFIX } from "./constants";
 import type {
   GenerationFailureBody,
   Info,
+  InputFile,
   SessionResponse,
   Settings,
   Sla,
@@ -54,15 +55,17 @@ const sessionPath = (id: string) => "/playground/sessions/" + encodeURIComponent
 
 export const fetchInfo = () => api<Partial<Info> & ErrorBody>("GET", "/playground/info");
 
-export const startSession = (settings: Settings, description: string, compose?: string) => {
+export const startSession = (settings: Settings, description: string, file?: InputFile | null) => {
   const body: Record<string, unknown> = {
     method: settings.method,
     max_retries: settings.maxRetries,
-    customer_id: settings.customerId.trim() || DEFAULT_SETTINGS.customerId,
     check_images: settings.checkImages,
     description,
   };
-  if (compose) body.compose = compose;
+  // The API takes the file under its kind: `compose` or `sla`.
+  if (file) body[file.kind] = file.text;
+  const customerId = settings.customerId.trim();
+  if (customerId) body.customer_id = customerId;
   return api<SessionResult["body"]>("POST", "/playground/sessions", body);
 };
 

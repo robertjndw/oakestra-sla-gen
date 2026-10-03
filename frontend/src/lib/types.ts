@@ -84,3 +84,12 @@ export interface ServiceEntry {
   mi: number;
   key: string;
 }
+
+/** What an uploaded file is: a compose file to translate, or an SLA to start from. */
+export type InputFileKind = "compose" | "sla";
+
+export interface InputFile {
+  name: string;
+  text: string;
+  kind: InputFileKind;
+}

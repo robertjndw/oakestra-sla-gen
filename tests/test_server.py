@@ -3,7 +3,7 @@
 import httpx
 import openai
 from fastapi.testclient import TestClient
-from helpers import COMPOSE_YAML, FakeStructuredLLM, _ok, _request
+from helpers import COMPOSE_YAML, EXISTING_SLA_JSON, FakeStructuredLLM, _ok, _request
 from langchain_core.messages import HumanMessage
 
 from oakestra_sla_gen.server import create_app
@@ -90,6 +90,39 @@ def test_generate_rejects_invalid_compose():
 
     assert response.status_code == 422
     assert "no services" in response.text
+    assert fake.calls == []
+
+
+def test_generate_with_an_existing_sla_sends_it_and_the_notes_to_the_llm():
+    client, fake = _client([_ok(_request("nginx"))])
+
+    response = client.post(
+        "/generate", json={"sla": EXISTING_SLA_JSON, "description": "give nginx 2 cpus"}
+    )
+
+    assert response.status_code == 200
+    last_human = [m for m in fake.calls[0] if isinstance(m, HumanMessage)][-1].content
+    assert EXISTING_SLA_JSON.strip() in last_human
+    assert "give nginx 2 cpus" in last_human
+
+
+def test_generate_rejects_an_unusable_sla():
+    client, fake = _client([])
+
+    response = client.post("/generate", json={"sla": '{"applications": []}'})
+
+    assert response.status_code == 422
+    assert "no applications" in response.text
+    assert fake.calls == []
+
+
+def test_generate_rejects_compose_and_sla_together():
+    client, fake = _client([])
+
+    response = client.post("/generate", json={"compose": COMPOSE_YAML, "sla": EXISTING_SLA_JSON})
+
+    assert response.status_code == 422
+    assert "not both" in response.text
     assert fake.calls == []
 
 

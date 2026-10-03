@@ -32,8 +32,8 @@ export function Thread({ rounds, onPickExample, ...rest }: Props) {
               <p className="text-muted-foreground text-sm leading-relaxed">
                 Write it the way you&apos;d explain it to a colleague: images, ports, resources, and which services
                 talk to each other. The model drafts an SLA, checks it against Oakestra&apos;s schema, and asks about
-                anything it had to guess. You can also upload a docker compose file instead, or drop one onto the
-                composer.
+                anything it had to guess. You can also upload a docker compose file to translate, or an existing SLA
+                to change through the chat, or drop either onto the composer.
               </p>
             </div>
             <div className="w-full space-y-2">

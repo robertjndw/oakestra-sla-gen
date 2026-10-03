@@ -1,7 +1,6 @@
 import { formatAnswers, type QuestionAnswer } from "@/lib/answers";
-import { MAX_COMPOSE_CHARS } from "@/lib/constants";
-import type { ComposeFile } from "@/hooks/use-session";
-import type { Clarification } from "@/lib/types";
+import { MAX_UPLOAD_CHARS } from "@/lib/constants";
+import type { Clarification, InputFile, InputFileKind } from "@/lib/types";
 
 export interface ActiveForm {
   questions: Clarification[];
@@ -14,7 +13,7 @@ export interface ComposerInput {
   hasModelDraft: boolean;
   form: ActiveForm | null;
   text: string;
-  composeFile: ComposeFile | null;
+  inputFile: InputFile | null;
 }
 
 export interface ComposerModel {
@@ -28,9 +27,9 @@ export interface ComposerModel {
 }
 
 export function composerModel(i: ComposerInput): ComposerModel {
-  const attached = !i.sessionId && !!i.composeFile;
+  const attached = i.sessionId ? null : (i.inputFile?.kind ?? null);
   const message = i.form ? formatAnswers(i.form.questions, i.form.answers, i.text) : i.text.trim();
-  const canSend = !i.turnRunning && (!!message || attached);
+  const canSend = !i.turnRunning && (!!message || !!attached);
 
   let label = i.sessionId ? "Update draft" : "Generate draft";
   if (i.form) label = "Send answers";
@@ -39,9 +38,9 @@ export function composerModel(i: ComposerInput): ComposerModel {
   let ariaLabel: string;
   if (!i.sessionId) {
     ariaLabel = "Describe what to deploy";
-    placeholder = attached
-      ? "Anything to add? e.g. pin the api to cluster edge1 (optional)"
-      : "e.g. A Node.js API on port 3000 with 2 CPUs and 1 GB of memory, talking to a Redis cache";
+    if (attached === "sla") placeholder = "What should change? e.g. give the api 2 CPUs and add a Redis cache (optional)";
+    else if (attached === "compose") placeholder = "Anything to add? e.g. pin the api to cluster edge1 (optional)";
+    else placeholder = "e.g. A Node.js API on port 3000 with 2 CPUs and 1 GB of memory, talking to a Redis cache";
   } else if (i.form) {
     ariaLabel = "Anything else to change";
     placeholder = "Anything else to change? (optional)";
@@ -58,15 +57,31 @@ export function composerModel(i: ComposerInput): ComposerModel {
   return { message, canSend, label, placeholder, ariaLabel, hint };
 }
 
-export type ReadResult = { ok: true; file: ComposeFile } | { ok: false; error: string };
+export type ReadResult = { ok: true; file: InputFile } | { ok: false; error: string };
 
-export async function readComposeFile(file: File): Promise<ReadResult> {
+/**
+ * Decided mostly by content: compose files can be JSON too, and an SLA saved from somewhere
+ * else may not end in .json. The extension only breaks the tie for text that doesn't parse, so
+ * a broken sla.json gets the server's "invalid JSON" error rather than "no services".
+ */
+export function detectKind(name: string, text: string): InputFileKind {
+  let data: unknown;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    return /\.json$/i.test(name) ? "sla" : "compose";
+  }
+  if (data === null || typeof data !== "object" || Array.isArray(data)) return "compose";
+  return "services" in data ? "compose" : "sla";
+}
+
+export async function readInputFile(file: File): Promise<ReadResult> {
   const text = await file.text();
-  if (text.length > MAX_COMPOSE_CHARS) {
+  if (text.length > MAX_UPLOAD_CHARS) {
     return {
       ok: false,
-      error: `${file.name} is ${text.length.toLocaleString("en-US")} characters; the limit is ${MAX_COMPOSE_CHARS.toLocaleString("en-US")}.`,
+      error: `${file.name} is ${text.length.toLocaleString("en-US")} characters; the limit is ${MAX_UPLOAD_CHARS.toLocaleString("en-US")}.`,
     };
   }
-  return { ok: true, file: { name: file.name, text } };
+  return { ok: true, file: { name: file.name, text, kind: detectKind(file.name, text) } };
 }

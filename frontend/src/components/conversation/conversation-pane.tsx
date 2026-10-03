@@ -1,7 +1,8 @@
 import { useRef, useState } from "react";
 import { useSessionContext } from "@/hooks/session-context";
-import { selectActiveForm, type ComposeFile, type RestoredInput } from "@/hooks/use-session";
+import { selectActiveForm, type RestoredInput } from "@/hooks/use-session";
 import { initialAnswers, type QuestionAnswer } from "@/lib/answers";
+import type { InputFile } from "@/lib/types";
 import { AcceptedBar } from "./accepted-bar";
 import { Composer } from "./composer";
 import { Thread } from "./thread";
@@ -10,7 +11,7 @@ export function ConversationPane() {
   const { state, loadCandidate, newSession, keepRefining } = useSessionContext();
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [text, setText] = useState("");
-  const [composeFile, setComposeFile] = useState<ComposeFile | null>(null);
+  const [inputFile, setInputFile] = useState<InputFile | null>(null);
   // Kept here, not in the form, so the composer can build the reply from the same state.
   const [answersById, setAnswersById] = useState<Record<number, QuestionAnswer[]>>({});
 
@@ -20,14 +21,14 @@ export function ConversationPane() {
   if (restored && restored !== seenRestore) {
     setSeenRestore(restored);
     setText(restored.text);
-    setComposeFile(restored.compose);
+    setInputFile(restored.file);
   }
   const [prevSessionId, setPrevSessionId] = useState(state.sessionId);
   if (prevSessionId !== state.sessionId) {
     setPrevSessionId(state.sessionId);
     if (state.sessionId === null) {
       setText("");
-      setComposeFile(null);
+      setInputFile(null);
       setAnswersById({});
     }
   }
@@ -62,8 +63,8 @@ export function ConversationPane() {
           <Composer
             text={text}
             onTextChange={setText}
-            composeFile={composeFile}
-            onComposeFileChange={setComposeFile}
+            inputFile={inputFile}
+            onInputFileChange={setInputFile}
             form={form}
             inputRef={inputRef}
           />

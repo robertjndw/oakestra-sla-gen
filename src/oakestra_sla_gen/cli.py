@@ -8,6 +8,7 @@ import pathlib
 import sys
 
 from .compose import ComposeError, compose_message
+from .existing_sla import ExistingSLAError, existing_sla_message, resolve_customer_id
 from .generator import (
     DEFAULT_MODEL,
     DEFAULT_REASONING_EFFORT,
@@ -127,11 +128,18 @@ def _generate_command(argv: list[str]) -> int:
     )
     parser.add_argument("text", nargs="?", help="Free-text description of the application(s).")
     parser.add_argument("-f", "--file", help="Read the description from a file.")
-    parser.add_argument(
+    input_file = parser.add_mutually_exclusive_group()
+    input_file.add_argument(
         "-c",
         "--compose",
         help="Read a docker compose file and translate it into an SLA. "
         "The positional text, -f, or stdin then become optional notes alongside it.",
+    )
+    input_file.add_argument(
+        "-s",
+        "--sla",
+        help="Start from an existing SLA (JSON) instead of a description. "
+        "The positional text, -f, or stdin then become optional changes to make to it.",
     )
     parser.add_argument("-o", "--output", help="Write the verified SLA here instead of stdout.")
     _add_llm_arguments(parser)
@@ -139,7 +147,10 @@ def _generate_command(argv: list[str]) -> int:
         "--method", choices=["prompt", "json_schema", "function_calling"], default="prompt"
     )
     parser.add_argument("--max-retries", type=int, default=3)
-    parser.add_argument("--customer-id", default="Admin")
+    parser.add_argument(
+        "--customer-id",
+        help="Customer ID for the SLA. Defaults to the --sla file's own, or Admin.",
+    )
     parser.add_argument(
         "--no-image-check",
         action="store_true",
@@ -156,12 +167,16 @@ def _generate_command(argv: list[str]) -> int:
     args = parser.parse_args(argv)
 
     text = _read_text_arg(args)
-    if args.compose:
-        # Notes are optional next to a compose file, so having none isn't a usage error.
+    sla_text = None
+    if args.compose or args.sla:
+        # Notes are optional next to an input file, so having none isn't a usage error.
         try:
-            compose_text = pathlib.Path(args.compose).read_text()
-            description = compose_message(compose_text, text or "")
-        except (ComposeError, OSError) as error:
+            if args.compose:
+                description = compose_message(pathlib.Path(args.compose).read_text(), text or "")
+            else:
+                sla_text = pathlib.Path(args.sla).read_text()
+                description = existing_sla_message(sla_text, text or "")
+        except (ComposeError, ExistingSLAError, OSError) as error:
             print(f"error: {error}", file=sys.stderr)
             return 2
     elif text is not None:
@@ -185,7 +200,7 @@ def _generate_command(argv: list[str]) -> int:
         session = SLASession(
             llm=_llm_from_args(args),
             method=args.method,
-            customer_id=args.customer_id,
+            customer_id=resolve_customer_id(args.customer_id, sla_text),
             max_retries=args.max_retries,
             check_images=not args.no_image_check,
             on_attempt=on_attempt,

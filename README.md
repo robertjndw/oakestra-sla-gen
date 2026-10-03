@@ -5,7 +5,7 @@
 [![Container image](https://img.shields.io/badge/ghcr.io-oakestra--sla--gen-blue?logo=docker)](https://github.com/robertjndw/oakestra-sla-gen/pkgs/container/oakestra-sla-gen)
 
 Generate a verified [Oakestra](https://oakestra.io) SLA from a free-text description or a
-Docker Compose file.
+Docker Compose file, or modify an existing SLA.
 
 Oakestra deploys applications from a JSON SLA document, and writing one by hand is easy to get
 wrong: strict name rules, exact field names, port syntax, units. `oakestra-sla-gen` asks an
@@ -25,6 +25,7 @@ uv run oakestra-sla-gen "a single nginx web server on port 80 with 1 cpu and 512
 - **Interactive clarification** - the model drafts what it can and asks about what it's unsure
   of, showing the assumption it used. Vague descriptions get questions, not invented apps.
 - **Docker Compose translation** - turn an existing `compose.yaml` into an Oakestra SLA.
+- **Edit existing SLAs** - start from an SLA you already have and change it in plain language.
 - **Image checks** - container images are looked up in their registry, so hallucinated image
   names are caught.
 - **Any OpenAI-compatible LLM** - works with local models via LM Studio as well as hosted APIs.
@@ -38,6 +39,7 @@ uv run oakestra-sla-gen "a single nginx web server on port 80 with 1 cpu and 512
 - [Usage](#usage)
 - [Configuration](#configuration)
 - [Docker Compose input](#docker-compose-input)
+- [Existing SLA input](#existing-sla-input)
 - [HTTP API](#http-api)
 - [Playground](#playground)
 - [Frontend](#frontend)
@@ -79,6 +81,9 @@ echo "..." | uv run oakestra-sla-gen
 
 # translate a compose file, with optional notes
 uv run oakestra-sla-gen --compose compose.yaml "pin api to cluster edge1"
+
+# change an existing SLA
+uv run oakestra-sla-gen --sla sla.json "give the api 2 cpus and add a redis cache"
 
 # check a hand-written SLA with the same verifier
 uv run oakestra-sla-gen validate existing_sla.json
@@ -129,7 +134,7 @@ are printed and the command exits with `3`.
 |---|---|
 | `0` | A verified SLA was printed. |
 | `1` | Generation failed within the retry budget, or was aborted with `q`. Errors are on stderr. |
-| `2` | Usage or connection error, or a compose file that doesn't exist or doesn't parse. |
+| `2` | Usage or connection error, or a compose file or SLA that doesn't exist or doesn't parse. |
 | `3` | Non-interactive only: the description needs clarification and no SLA was produced. |
 
 ## Configuration
@@ -142,10 +147,11 @@ are printed and the command exits with `3`.
 | `--reasoning-effort` | | `low` | `low`, `medium` or `high` |
 | `--method` | | `prompt` | Structured output method: `prompt`, `json_schema` or `function_calling` |
 | `--max-retries` | | `3` | Correction rounds before giving up |
-| `--customer-id` | | `Admin` | Oakestra customer ID written into the SLA |
+| `--customer-id` | | `Admin` | Oakestra customer ID written into the SLA. With `--sla`, defaults to that file's own |
 | `--no-image-check` | | off | Skip checking that images exist in their registry |
 | `--no-interactive` | | off | Never prompt, see [Non-interactive mode](#non-interactive-mode) |
 | `-c`, `--compose` | | | Translate a compose file, see [Docker Compose input](#docker-compose-input) |
+| `-s`, `--sla` | | | Start from an existing SLA, see [Existing SLA input](#existing-sla-input) |
 | `-f`, `--file` | | | Read the description from a file |
 | `-o`, `--output` | | stdout | Write the SLA to a file |
 | `-v`, `--verbose` | | off | Log each attempt and its errors to stderr |
@@ -177,6 +183,25 @@ service IP.
 Oakestra equivalent and are dropped, with a question raised when it matters. Compose files are
 capped at 64,000 characters.
 
+## Existing SLA input
+
+The CLI's `--sla`, the HTTP API's `sla` field and the playground's upload button all start from
+an SLA you already have instead of a description. The model uses it as the first draft and
+leaves it alone unless told otherwise. The positional text, `-f`, stdin, the `description`
+field or the playground's chat say what to change. With no notes at all, you get the same SLA
+back, verified, with its images checked and any open questions raised.
+
+The SLA doesn't have to be valid: if it fails validation, the problems are handed to the model
+to fix. Fields the generator can't represent (`connectivity`, latency or geo constraints,
+`bandwidth_in`, `added_files`, ...) are dropped, and the model is told which ones so it can ask
+about those that change behavior. The uploaded `customerID` is kept unless you set
+`--customer-id`, `customer_id` or the playground's Customer ID explicitly. SLAs are capped at
+64,000 characters.
+
+The playground tells uploads apart by content: a JSON object without a `services` key is an
+SLA, anything else is a compose file. A `.json` file that doesn't parse counts as an SLA, so
+you get the JSON error.
+
 ## HTTP API
 
 The server is an optional extra, so the plain CLI install doesn't pull in FastAPI:
@@ -192,16 +217,18 @@ uv run oakestra-sla-gen serve --host 0.0.0.0 --port 9000 --model openai/gpt-oss-
 
 | Endpoint | Body | Response |
 |---|---|---|
-| `POST /generate` | `{"description", "compose", "method", "customer_id", "max_retries"}` | The verified SLA |
+| `POST /generate` | `{"description", "compose", "sla", "method", "customer_id", "max_retries"}` | The verified SLA |
 | `POST /validate` | An SLA document | `{"valid": bool, "errors": [...]}`, always `200` |
 
-For `/generate`, either `description` or `compose` is required. With both, `compose` is
-translated and `description` is used as notes. `max_retries` is capped at 10. Error responses:
+For `/generate`, one of `description`, `compose` or `sla` is required. `compose` and `sla`
+take the raw file text and can't be combined. Next to either one, `description` is used as
+notes. `max_retries` is capped at 10. Error responses:
 
 - `422` with `{"detail", "errors", "last_candidate"}` if no valid SLA came out within
   `max_retries`
 - `422` with `{"detail", "questions"}` if the input was too vague to draft anything
-- `422` with a readable `msg` if `compose` isn't a usable compose file
+- `422` with a readable `msg` if `compose` isn't a usable compose file or `sla` isn't usable
+  JSON with at least one application
 - `502` if the LLM server failed
 
 `/generate` is single-shot: it doesn't expose the interactive session, so open questions come
@@ -227,8 +254,9 @@ pnpm --dir frontend install && pnpm --dir frontend dev    # then open http://loc
 The dev server proxies `/api` to `127.0.0.1:8000`.
 
 - **Conversation (left pane)** - describe your app, or upload or drag-and-drop a compose file
-  with an optional note. Each round shows whether the draft passed validation, what changed,
-  and the model's open questions. Keep each assumption or answer it, then update or accept the
+  or an existing SLA with an optional note, then keep changing the draft through the chat.
+  Each round shows whether the draft passed validation, what changed, and the model's open
+  questions. Keep each assumption or answer it, then update or accept the
   draft.
 - **Visual view (right pane)** - a map of the services, what's reachable from outside and
   which service references another's service IP, followed by a section per service with
@@ -368,6 +396,7 @@ The code lives in `src/oakestra_sla_gen/`:
 | `validation.py`, `oakestra_schema.py` | Verifier and the vendored Oakestra JSON Schema |
 | `registry.py` | Container image existence checks |
 | `compose.py` | Docker Compose input handling |
+| `existing_sla.py` | Existing SLA input handling |
 | `prompts.py` | System and correction prompts |
 | `server.py`, `playground.py` | HTTP API and playground session API |
 

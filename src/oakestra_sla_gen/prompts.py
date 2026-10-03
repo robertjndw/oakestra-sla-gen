@@ -154,3 +154,15 @@ the result truncated to 10 characters.
 Compose file:
 ```yaml
 """
+
+# Same reasoning as COMPOSE_TEMPLATE: only sent when the user uploads an SLA.
+EXISTING_SLA_TEMPLATE = """\
+Here is an existing Oakestra SLA. Use it as your current draft and reproduce it faithfully: \
+keep every application, microservice, name, image, port, resource amount, environment \
+variable, command, constraint and service IP exactly as given, unless the user asks for a \
+change or it breaks a rule above. Don't ask about values the SLA already sets, and don't \
+"improve" anything nobody asked about. Later messages will ask you to modify this draft.
+
+Existing SLA:
+```json
+"""

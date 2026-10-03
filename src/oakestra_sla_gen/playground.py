@@ -135,7 +135,7 @@ def add_playground(
         session_id = uuid.uuid4().hex
         session = SLASession(
             structured_llm=structured_llm_factory(request.method),
-            customer_id=request.customer_id,
+            customer_id=request.resolved_customer_id(),
             max_retries=request.max_retries,
             check_images=request.check_images,
         )

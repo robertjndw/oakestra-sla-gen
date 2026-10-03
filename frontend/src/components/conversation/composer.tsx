@@ -12,29 +12,30 @@ import {
 } from "@/components/ai-elements/prompt-input";
 import { Button } from "@/components/ui/button";
 import { useSessionContext } from "@/hooks/session-context";
-import type { ComposeFile } from "@/hooks/use-session";
+import type { InputFile } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { composerModel, readComposeFile, type ActiveForm } from "./composer-logic";
+import { composerModel, readInputFile, type ActiveForm } from "./composer-logic";
 
 const IS_MAC = /Mac|iPhone|iPad/.test(globalThis.navigator?.platform || globalThis.navigator?.userAgent || "");
-const ACCEPT = ".yml,.yaml,application/x-yaml,text/yaml";
+const ACCEPT = ".yml,.yaml,.json,application/x-yaml,text/yaml,application/json";
+const KIND_LABEL = { compose: "Compose", sla: "SLA" } as const;
 
 interface Props {
   text: string;
   onTextChange: (text: string) => void;
-  composeFile: ComposeFile | null;
-  onComposeFileChange: (file: ComposeFile | null) => void;
+  inputFile: InputFile | null;
+  onInputFileChange: (file: InputFile | null) => void;
   form: ActiveForm | null;
   inputRef: RefObject<HTMLTextAreaElement | null>;
 }
 
-export function Composer({ text, onTextChange, composeFile, onComposeFileChange, form, inputRef }: Props) {
+export function Composer({ text, onTextChange, inputFile, onInputFileChange, form, inputRef }: Props) {
   const { state, settingsLocked, send, answer, accept } = useSessionContext();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
 
   const { turnRunning } = state;
-  // Only the first message can carry a compose file.
+  // Only the first message can carry a file.
   const canAttach = !settingsLocked && !turnRunning;
   const model = composerModel({
     sessionId: state.sessionId,
@@ -42,25 +43,25 @@ export function Composer({ text, onTextChange, composeFile, onComposeFileChange,
     hasModelDraft: !!state.modelSla,
     form,
     text,
-    composeFile,
+    inputFile,
   });
 
   const attach = async (file: File) => {
-    const res = await readComposeFile(file);
+    const res = await readInputFile(file);
     if (!res.ok) {
       toast.error("File too large", { description: res.error });
       return;
     }
-    onComposeFileChange(res.file);
+    onInputFileChange(res.file);
     inputRef.current?.focus();
   };
 
   const submit = () => {
     if (!model.canSend) return;
     const extra = text;
-    const file = composeFile;
+    const file = inputFile;
     onTextChange("");
-    onComposeFileChange(null);
+    onInputFileChange(null);
     if (form) void answer(model.message, { answers: form.answers, extra });
     else void send(extra, file);
   };
@@ -102,19 +103,22 @@ export function Composer({ text, onTextChange, composeFile, onComposeFileChange,
       }}
     >
       <PromptInput onSubmit={submit} aria-label="Message composer">
-        {!settingsLocked && composeFile && (
+        {!settingsLocked && inputFile && (
           <div className="flex w-full items-center px-3 pt-3">
             <span className="inline-flex max-w-full items-center gap-1.5 rounded-md border bg-muted px-2 py-1 text-xs">
               <FileTextIcon className="size-3.5 shrink-0" aria-hidden />
-              <span className="truncate" data-testid="compose-chip-name">
-                {composeFile.name}
+              <span className="font-medium" data-testid="file-chip-kind">
+                {KIND_LABEL[inputFile.kind]}
+              </span>
+              <span className="truncate" data-testid="file-chip-name">
+                {inputFile.name}
               </span>
               <button
                 type="button"
                 className="rounded-sm p-0.5 hover:bg-background"
-                aria-label="Remove attached compose file"
+                aria-label="Remove attached file"
                 onClick={() => {
-                  onComposeFileChange(null);
+                  onInputFileChange(null);
                   inputRef.current?.focus();
                 }}
               >
@@ -141,7 +145,7 @@ export function Composer({ text, onTextChange, composeFile, onComposeFileChange,
               type="file"
               hidden
               accept={ACCEPT}
-              aria-label="Docker compose file"
+              aria-label="Docker compose file or SLA"
               onChange={(e) => {
                 const file = e.currentTarget.files?.[0];
                 e.currentTarget.value = "";
@@ -152,10 +156,10 @@ export function Composer({ text, onTextChange, composeFile, onComposeFileChange,
               <PromptInputButton
                 disabled={!canAttach}
                 onClick={() => fileInputRef.current?.click()}
-                aria-label="Upload docker compose"
+                aria-label="Upload docker compose or SLA"
               >
                 <PaperclipIcon className="size-4" />
-                Upload docker compose
+                Upload compose or SLA
               </PromptInputButton>
             )}
             <Hint kind={model.hint} action={state.sessionId ? "update" : "generate"} />

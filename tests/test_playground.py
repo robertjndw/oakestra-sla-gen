@@ -1,7 +1,7 @@
 """Playground HTTP API tests with a fake structured-output runnable, no network involved."""
 
 from fastapi.testclient import TestClient
-from helpers import COMPOSE_YAML, FakeStructuredLLM, _ok, _request
+from helpers import COMPOSE_YAML, EXISTING_SLA_JSON, FakeStructuredLLM, _ok, _request
 from langchain_core.messages import HumanMessage
 
 from oakestra_sla_gen.models import Clarification
@@ -55,6 +55,43 @@ def test_start_session_with_compose_works():
     assert body["sla"]["applications"][0]["microservices"][0]["microservice_name"] == "web"
     last_human = [m for m in fake.calls[0] if isinstance(m, HumanMessage)][-1].content
     assert COMPOSE_YAML in last_human
+
+
+def test_start_session_from_an_existing_sla_then_modify_it():
+    client, fake = _client([_ok(_request("nginx")), _ok(_request("nginx", "redis"))])
+
+    start = client.post(
+        "/playground/sessions", json={"sla": EXISTING_SLA_JSON, "check_images": False}
+    )
+
+    assert start.status_code == 200
+    first_human = [m for m in fake.calls[0] if isinstance(m, HumanMessage)][-1].content
+    assert EXISTING_SLA_JSON.strip() in first_human
+
+    response = client.post(
+        f"/playground/sessions/{start.json()['session_id']}/answer", json={"text": "add redis"}
+    )
+
+    assert response.status_code == 200
+    # The follow-up turn still carries the uploaded SLA as conversation history.
+    assert any(
+        isinstance(m, HumanMessage) and EXISTING_SLA_JSON.strip() in m.content
+        for m in fake.calls[1]
+    )
+
+
+def test_start_session_from_an_sla_keeps_its_customer_id_unless_one_is_given():
+    uploaded = EXISTING_SLA_JSON.replace('"customerID": "Admin"', '"customerID": "acme"')
+    client, _ = _client([_ok(_request("nginx")), _ok(_request("nginx"))])
+
+    kept = client.post("/playground/sessions", json={"sla": uploaded, "check_images": False})
+    overridden = client.post(
+        "/playground/sessions",
+        json={"sla": uploaded, "customer_id": "other", "check_images": False},
+    )
+
+    assert kept.json()["sla"]["customerID"] == "acme"
+    assert overridden.json()["sla"]["customerID"] == "other"
 
 
 def test_answer_continues_the_same_session():

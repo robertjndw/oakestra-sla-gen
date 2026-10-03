@@ -27,10 +27,10 @@ export function RoundView({ round, activeFormId, answers, onAnswersChange, loadC
       return (
         <Message from="user">
           <MessageContent>
-            {round.composeName && (
+            {round.fileName && (
               <span className="inline-flex w-fit max-w-full items-center gap-1.5 rounded-md bg-background/70 px-2 py-0.5 text-xs">
                 <FileTextIcon className="size-3.5 shrink-0" aria-hidden />
-                <span className="truncate">{round.composeName}</span>
+                <span className="truncate">{round.fileName}</span>
               </span>
             )}
             <p className="whitespace-pre-wrap break-words">{round.text}</p>

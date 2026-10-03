@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, PrivateAttr, model_validator
 
 from .compose import MAX_COMPOSE_CHARS, compose_message
+from .existing_sla import MAX_SLA_CHARS, existing_sla_message, resolve_customer_id
 from .generator import NeedsClarification, SLAGenerationError, generate_sla
 from .validation import validate_sla
 
@@ -16,26 +17,39 @@ from .validation import validate_sla
 class GenerateRequest(BaseModel):
     description: str = ""
     compose: str | None = Field(default=None, max_length=MAX_COMPOSE_CHARS)
+    # The raw JSON text rather than a parsed object, for the same reason as `compose`: image
+    # names have to reach the LLM exactly as the user wrote them.
+    sla: str | None = Field(default=None, max_length=MAX_SLA_CHARS)
     method: Literal["prompt", "json_schema", "function_calling"] = "prompt"
-    customer_id: str = "Admin"
+    # None (or blank) means "not chosen": an uploaded SLA's own customerID is kept then.
+    customer_id: str | None = None
     # Capped so a single request can't keep a worker busy with an LLM for minutes.
     max_retries: int = Field(default=3, ge=1, le=10)
     _message: str = PrivateAttr()
+    _customer_id: str = PrivateAttr()
 
     @model_validator(mode="after")
-    def _require_description_or_compose(self) -> "GenerateRequest":
-        if not self.description.strip() and not self.compose:
-            raise ValueError("description or compose is required")
-        # Built here so the compose YAML is parsed once, and a ComposeError (a ValueError)
-        # is reported by pydantic as a regular 422.
+    def _require_description_or_input_file(self) -> "GenerateRequest":
+        if self.compose is not None and self.sla is not None:
+            raise ValueError("send either compose or sla, not both")
+        if not self.description.strip() and not self.compose and not self.sla:
+            raise ValueError("description, compose or sla is required")
+        # Built here so the file is parsed once, and a ComposeError or ExistingSLAError (both
+        # ValueErrors) is reported by pydantic as a regular 422.
         if self.compose is not None:
             self._message = compose_message(self.compose, self.description)
+        elif self.sla is not None:
+            self._message = existing_sla_message(self.sla, self.description)
         else:
             self._message = self.description
+        self._customer_id = resolve_customer_id(self.customer_id, self.sla)
         return self
 
     def message(self) -> str:
         return self._message
+
+    def resolved_customer_id(self) -> str:
+        return self._customer_id
 
 
 class GenerationFailure(BaseModel):
@@ -88,7 +102,7 @@ def create_app(
             return generate_sla(
                 request.message(),
                 structured_llm=structured_llm_factory(request.method),
-                customer_id=request.customer_id,
+                customer_id=request.resolved_customer_id(),
                 max_retries=request.max_retries,
             )
         except SLAGenerationError as error:
