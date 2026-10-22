@@ -1,4 +1,5 @@
-import { Message, MessageContent } from "@/components/ai-elements/message";
+import { Bubble, BubbleContent } from "@/components/ui/bubble";
+import { Message, MessageContent } from "@/components/ui/message";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,15 +27,19 @@ export function RoundView({ round, activeFormId, answers, onAnswersChange, loadC
   switch (round.kind) {
     case "user":
       return (
-        <Message from="user">
+        <Message align="end">
           <MessageContent>
-            {round.fileName && (
-              <Badge variant="outline" className="max-w-full bg-background">
-                <FileTextIcon aria-hidden />
-                <span className="truncate">{round.fileName}</span>
-              </Badge>
-            )}
-            <p className="whitespace-pre-wrap break-words">{round.text}</p>
+            <Bubble align="end" variant="muted">
+              <BubbleContent className="flex flex-col gap-2">
+                {round.fileName && (
+                  <Badge variant="outline" className="max-w-full bg-background">
+                    <FileTextIcon aria-hidden />
+                    <span className="truncate">{round.fileName}</span>
+                  </Badge>
+                )}
+                <p className="whitespace-pre-wrap break-words">{round.text}</p>
+              </BubbleContent>
+            </Bubble>
           </MessageContent>
         </Message>
       );
@@ -53,7 +58,7 @@ export function RoundView({ round, activeFormId, answers, onAnswersChange, loadC
     case "failed": {
       const shown = round.errors.slice(0, 5);
       return (
-        <Message from="assistant">
+        <Message>
           <MessageContent className="w-full">
             <Alert variant="destructive">
               <OctagonAlertIcon />
@@ -90,7 +95,7 @@ export function RoundView({ round, activeFormId, answers, onAnswersChange, loadC
     }
     case "notice":
       return (
-        <Message from="assistant">
+        <Message>
           <MessageContent className="w-full">
             <Alert>
               <OctagonAlertIcon />
@@ -150,7 +155,7 @@ function QuestionRoundView({
       ? `Draft ${round.unchangedDraft} is unchanged`
       : "No draft yet";
   return (
-    <Message from="assistant">
+    <Message>
       <MessageContent className="gap-3">
         <StatusHead status={isDraft ? "ok" : "ask"} title={title} meta={meta} />
         {isDraft && (

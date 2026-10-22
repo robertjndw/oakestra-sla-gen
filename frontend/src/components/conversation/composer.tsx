@@ -1,18 +1,10 @@
 import { useRef, useState, type DragEvent, type KeyboardEvent, type RefObject } from "react";
 import { FileTextIcon, HistoryIcon, PaperclipIcon, XIcon } from "lucide-react";
 import { toast } from "sonner";
-import {
-  PromptInput,
-  PromptInputBody,
-  PromptInputButton,
-  PromptInputFooter,
-  PromptInputHeader,
-  PromptInputSubmit,
-  PromptInputTextarea,
-  PromptInputTools,
-} from "@/components/ai-elements/prompt-input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from "@/components/ui/input-group";
+import { Spinner } from "@/components/ui/spinner";
 import { useSessionContext } from "@/hooks/session-context";
 import type { InputFile } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -76,11 +68,9 @@ export function Composer({ text, onTextChange, inputFile, onInputFileChange, for
     else void send(extra, file);
   };
 
-  // Enter is a newline and Cmd/Ctrl+Enter sends. PromptInputTextarea would submit on a plain
-  // Enter, so this runs in the capture phase and stops the event before its own handler.
-  const onKeyDownCapture = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+  // Enter is a newline and Cmd/Ctrl+Enter sends.
+  const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
-    e.stopPropagation();
     if (e.metaKey || e.ctrlKey) {
       e.preventDefault();
       submit();
@@ -101,9 +91,8 @@ export function Composer({ text, onTextChange, inputFile, onInputFileChange, for
         // Fires when moving onto a child too, so only clear once the pointer really left.
         if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragOver(false);
       }}
-      // Stop the drop here, or PromptInput queues the file as one of its own attachments too.
-      // Those only give us a blob URL, and we need the text right away to tell compose from SLA
-      // and to enforce the size limit, so readInputFile handles all uploads.
+      // The text is needed right away to tell compose from SLA and to enforce the size limit,
+      // so readInputFile handles all uploads. Capture so the textarea never inserts the file.
       onDropCapture={(e) => {
         if (!isFileDrag(e)) return;
         e.preventDefault();
@@ -113,98 +102,109 @@ export function Composer({ text, onTextChange, inputFile, onInputFileChange, for
         if (file && canAttach) void attach(file);
       }}
     >
-      <PromptInput onSubmit={submit} aria-label="Message composer">
-        {!settingsLocked && attached && (
-          <PromptInputHeader className="px-3 pt-3">
-            <Badge variant="secondary" className="h-6 max-w-full gap-1.5 pr-0.5">
-              {attached.origin === "history" ? <HistoryIcon aria-hidden /> : <FileTextIcon aria-hidden />}
-              <span data-testid="file-chip-kind">
-                {attached.origin === "history" ? "From history" : KIND_LABEL[attached.kind]}
-              </span>
-              <span className="truncate font-normal" data-testid="file-chip-name">
-                {attached.name}
-              </span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-xs"
-                className="size-5 rounded-full"
-                aria-label={`Remove ${attached.name}`}
-                onClick={() => {
-                  // The reopened SLA lives in the editor, so dropping it means starting over.
-                  if (attached === seedFile) newSession();
-                  else onInputFileChange(null);
-                  inputRef.current?.focus();
-                }}
-              >
-                <XIcon aria-hidden />
-              </Button>
-            </Badge>
-          </PromptInputHeader>
-        )}
-        <PromptInputBody>
-          <PromptInputTextarea
+      <form
+        aria-label="Message composer"
+        onSubmit={(e) => {
+          e.preventDefault();
+          submit();
+        }}
+      >
+        <InputGroup className="overflow-hidden">
+          {!settingsLocked && attached && (
+            <InputGroupAddon align="block-start" className="flex-wrap gap-1">
+              <Badge variant="secondary" className="h-6 max-w-full gap-1.5 pr-0.5">
+                {attached.origin === "history" ? <HistoryIcon aria-hidden /> : <FileTextIcon aria-hidden />}
+                <span data-testid="file-chip-kind">
+                  {attached.origin === "history" ? "From history" : KIND_LABEL[attached.kind]}
+                </span>
+                <span className="truncate font-normal" data-testid="file-chip-name">
+                  {attached.name}
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  className="size-5 rounded-full"
+                  aria-label={`Remove ${attached.name}`}
+                  onClick={() => {
+                    // The reopened SLA lives in the editor, so dropping it means starting over.
+                    if (attached === seedFile) newSession();
+                    else onInputFileChange(null);
+                    inputRef.current?.focus();
+                  }}
+                >
+                  <XIcon aria-hidden />
+                </Button>
+              </Badge>
+            </InputGroupAddon>
+          )}
+          <InputGroupTextarea
             ref={inputRef}
+            name="message"
+            className="field-sizing-content max-h-48 min-h-16"
             aria-label={model.ariaLabel}
             value={text}
             onChange={(e) => onTextChange(e.currentTarget.value)}
-            onKeyDownCapture={onKeyDownCapture}
+            onKeyDown={onKeyDown}
             placeholder={model.placeholder}
             disabled={turnRunning}
           />
-        </PromptInputBody>
-        <PromptInputFooter>
-          <PromptInputTools>
-            <input
-              ref={fileInputRef}
-              type="file"
-              hidden
-              accept={ACCEPT}
-              aria-label="Docker compose file or SLA"
-              onChange={(e) => {
-                const file = e.currentTarget.files?.[0];
-                e.currentTarget.value = "";
-                if (file) void attach(file);
-              }}
-            />
-            {!settingsLocked && (
-              <PromptInputButton
-                disabled={!canAttach}
-                onClick={() => fileInputRef.current?.click()}
-                aria-label="Upload docker compose or SLA"
-              >
-                <PaperclipIcon className="size-4" />
-                Upload compose or SLA
-              </PromptInputButton>
-            )}
-            <Hint kind={model.hint} action={state.sessionId ? "update" : "generate"} />
-          </PromptInputTools>
-          <div className="flex items-center gap-1.5">
-            {state.sessionId && state.modelSla && (
-              <Button
-                type="button"
-                variant={model.acceptPrimary ? "default" : "outline"}
+          <InputGroupAddon align="block-end" className="justify-between gap-1">
+            <div className="flex min-w-0 items-center gap-1">
+              <input
+                ref={fileInputRef}
+                type="file"
+                hidden
+                accept={ACCEPT}
+                aria-label="Docker compose file or SLA"
+                onChange={(e) => {
+                  const file = e.currentTarget.files?.[0];
+                  e.currentTarget.value = "";
+                  if (file) void attach(file);
+                }}
+              />
+              {!settingsLocked && (
+                <InputGroupButton
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={!canAttach}
+                  onClick={() => fileInputRef.current?.click()}
+                  aria-label="Upload docker compose or SLA"
+                >
+                  <PaperclipIcon className="size-4" />
+                  Upload compose or SLA
+                </InputGroupButton>
+              )}
+              <Hint kind={model.hint} action={state.sessionId ? "update" : "generate"} />
+            </div>
+            <div className="flex items-center gap-1.5">
+              {state.sessionId && state.modelSla && (
+                <Button
+                  type="button"
+                  variant={model.acceptPrimary ? "default" : "outline"}
+                  size="sm"
+                  disabled={turnRunning}
+                  onClick={accept}
+                >
+                  Accept draft
+                </Button>
+              )}
+              <InputGroupButton
+                type="submit"
                 size="sm"
-                disabled={turnRunning}
-                onClick={accept}
+                // Only one primary action at a time; with nothing typed, Accept is the next step.
+                variant={model.acceptPrimary ? "outline" : "default"}
+                className="px-3"
+                disabled={!model.canSend}
+                aria-label={model.label}
               >
-                Accept draft
-              </Button>
-            )}
-            <PromptInputSubmit
-              size="sm"
-              // Only one primary action at a time; with nothing typed, Accept is the next step.
-              variant={model.acceptPrimary ? "outline" : "default"}
-              className="px-3"
-              status={turnRunning ? "submitted" : undefined}
-              disabled={!model.canSend}
-              aria-label={model.label}
-            >
-              {turnRunning ? undefined : model.label}
-            </PromptInputSubmit>
-          </div>
-        </PromptInputFooter>
-      </PromptInput>
+                {turnRunning ? <Spinner /> : model.label}
+              </InputGroupButton>
+            </div>
+          </InputGroupAddon>
+        </InputGroup>
+      </form>
     </div>
   );
 }

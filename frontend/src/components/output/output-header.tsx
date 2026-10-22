@@ -1,12 +1,9 @@
+import type { ComponentType } from "react";
 import { CopyIcon, DownloadIcon } from "lucide-react";
-import {
-  ArtifactAction,
-  ArtifactActions,
-  ArtifactHeader,
-  ArtifactTitle,
-} from "@/components/ai-elements/artifact";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { copySla, downloadSla } from "@/lib/file-actions";
 import { plural } from "@/lib/format";
 import type { ValidationResult } from "@/hooks/use-validation";
@@ -37,17 +34,50 @@ function badgeFor(p: Pick<HeaderProps, "validation" | "accepted" | "edited">): {
   return { label: p.edited ? "Valid" : "Passed validation", variant: "success" };
 }
 
+function HeaderAction({
+  tooltip,
+  label,
+  icon: Icon,
+  disabled,
+  onClick,
+}: {
+  tooltip: string;
+  label: string;
+  icon: ComponentType<{ className?: string }>;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="text-muted-foreground hover:text-foreground"
+          disabled={disabled}
+          onClick={onClick}
+        >
+          <Icon className="size-4" />
+          <span className="sr-only">{label}</span>
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>
+        <p>{tooltip}</p>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 export function OutputHeader(props: HeaderProps) {
   const { text, validation, mode, onModeChange } = props;
   const hasText = text.trim() !== "";
   const badge = badgeFor(props);
 
   return (
-    <ArtifactHeader className="flex-wrap gap-y-2">
+    <div className="flex flex-wrap items-center justify-between gap-y-2 border-b bg-muted/50 px-4 py-3">
       <div className="flex min-w-0 items-center gap-2">
-        <ArtifactTitle className="text-base font-semibold" role="heading" aria-level={2}>
-          {titleFor(props)}
-        </ArtifactTitle>
+        <h2 className="text-base font-semibold">{titleFor(props)}</h2>
         {hasText && (
           <Badge variant={badge.variant} aria-live="polite" data-status={validation.status}>
             {badge.label}
@@ -61,17 +91,17 @@ export function OutputHeader(props: HeaderProps) {
             <TabsTrigger value="code">Code</TabsTrigger>
           </TabsList>
         </Tabs>
-        <ArtifactActions>
-          <ArtifactAction tooltip="Copy" label="Copy the SLA" icon={CopyIcon} disabled={!hasText} onClick={() => void copySla(text)} />
-          <ArtifactAction
+        <div className="flex items-center gap-1">
+          <HeaderAction tooltip="Copy" label="Copy the SLA" icon={CopyIcon} disabled={!hasText} onClick={() => void copySla(text)} />
+          <HeaderAction
             tooltip="Download sla.json"
             label="Download sla.json"
             icon={DownloadIcon}
             disabled={!hasText}
             onClick={() => downloadSla(text)}
           />
-        </ArtifactActions>
+        </div>
       </div>
-    </ArtifactHeader>
+    </div>
   );
 }

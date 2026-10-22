@@ -1,5 +1,4 @@
 import { lazy, Suspense, useMemo, useState } from "react";
-import { Artifact, ArtifactContent } from "@/components/ai-elements/artifact";
 import { useSessionContext } from "@/hooks/session-context";
 import { useLocalStorageState } from "@/hooks/use-local-storage-state";
 import { useValidation } from "@/hooks/use-validation";
@@ -65,11 +64,11 @@ export function OutputPane() {
   );
 
   return (
-    <Artifact
+    <div
       role="region"
       aria-label="SLA"
       aria-busy={state.turnRunning}
-      className="min-h-[520px] rounded-none border-0 border-t bg-card shadow-none lg:min-h-0 lg:border-t-0 lg:border-l"
+      className="flex min-h-[520px] flex-col overflow-hidden border-t bg-card lg:min-h-0 lg:border-t-0 lg:border-l"
     >
       <OutputHeader
         text={text}
@@ -90,9 +89,9 @@ export function OutputPane() {
         // Holds the bar's height so the content does not jump when a turn starts or ends.
         <div aria-hidden className="h-0.5 shrink-0" />
       )}
-      <ArtifactContent
+      <div
         className={cn(
-          "flex min-h-0 flex-col transition-opacity duration-200",
+          "flex min-h-0 flex-1 flex-col transition-opacity duration-200",
           // CodeMirror scrolls itself and has to reach the edges.
           showCode ? "overflow-visible p-0" : "overflow-auto p-4 sm:p-6",
           state.turnRunning && "opacity-55",
@@ -124,8 +123,8 @@ export function OutputPane() {
         {!showCode && !showVisual && (
           <EmptyOutput turnRunning={state.turnRunning} hasSession={state.sessionId !== null} />
         )}
-      </ArtifactContent>
+      </div>
       <PendingDraftDialog />
-    </Artifact>
+    </div>
   );
 }

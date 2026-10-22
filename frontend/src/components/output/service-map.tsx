@@ -1,22 +1,25 @@
 import "@xyflow/react/dist/style.css";
 import {
+  Background,
   BaseEdge,
+  Controls,
   EdgeLabelRenderer,
   getBezierPath,
   getSimpleBezierPath,
+  Handle,
   MarkerType,
   Position,
+  ReactFlow,
 } from "@xyflow/react";
 import type { Edge as FlowEdge, EdgeProps, Node as FlowNode, NodeProps } from "@xyflow/react";
-import { createContext, useContext, useMemo, useState } from "react";
-import { Canvas } from "@/components/ai-elements/canvas";
-import { Controls } from "@/components/ai-elements/controls";
-import { Node, NodeContent } from "@/components/ai-elements/node";
+import { createContext, useContext, useMemo, useState, type ComponentProps } from "react";
+import { Card, CardContent } from "@/components/ui/card";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { plural } from "@/lib/format";
 import { parsePorts, serviceName, shortImage } from "@/lib/sla";
 import type { ServiceLink } from "@/lib/sla";
 import type { ServiceEntry } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import { focusService } from "./focus-service";
 import { computeMapLayout, NODE_H, NODE_W, OUTSIDE_H, OUTSIDE_W, serviceId } from "./map-layout";
 import type { ServiceMark } from "./marks";
@@ -58,16 +61,31 @@ function useActiveNode(id: string) {
   };
 }
 
+function MapNode({
+  handles,
+  className,
+  children,
+  ...props
+}: ComponentProps<typeof Card> & { handles: { target: boolean; source: boolean } }) {
+  return (
+    <Card className={cn("relative gap-0 rounded-md p-0", className)} {...props}>
+      {handles.target && <Handle position={Position.Left} type="target" />}
+      {handles.source && <Handle position={Position.Right} type="source" />}
+      {children}
+    </Card>
+  );
+}
+
 function ServiceNode({ id, data }: NodeProps<ServiceFlowNode>) {
   const tone = data.flag?.tone;
   const { handlers, dimClass } = useActiveNode(id);
   return (
-    <Node
+    <MapNode
       handles={{ target: true, source: true }}
       className={`service-map-node ${dimClass} ${tone === "bad" ? "border-rust" : tone === "warn" ? "border-amber-dot" : ""}`}
       style={{ width: NODE_W, height: NODE_H }}
     >
-      <NodeContent className="h-full p-0">
+      <CardContent className="h-full p-0">
         <HoverCard openDelay={250} closeDelay={100}>
           <HoverCardTrigger asChild>
             <button
@@ -94,15 +112,15 @@ function ServiceNode({ id, data }: NodeProps<ServiceFlowNode>) {
             <ServicePreview service={data.entry} mark={data.mark} links={data.links} />
           </HoverCardContent>
         </HoverCard>
-      </NodeContent>
-    </Node>
+      </CardContent>
+    </MapNode>
   );
 }
 
 function OutsideNode({ id, data }: NodeProps<OutsideFlowNode>) {
   const { handlers, dimClass } = useActiveNode(id);
   return (
-    <Node
+    <MapNode
       handles={{ target: false, source: true }}
       className={`service-map-node ${dimClass} items-center justify-center rounded-full bg-muted`}
       style={{ width: OUTSIDE_W, height: OUTSIDE_H }}
@@ -122,7 +140,7 @@ function OutsideNode({ id, data }: NodeProps<OutsideFlowNode>) {
           <OutsidePreview exposed={data.exposed} />
         </HoverCardContent>
       </HoverCard>
-    </Node>
+    </MapNode>
   );
 }
 
@@ -300,7 +318,10 @@ export function ServiceMap({ list, links, marks }: Props) {
       aria-label={`Service map: ${plural(list.length, "service")}, ${plural(links.length, "connection")}`}
     >
       <ActiveNodeContext value={activeNode}>
-        <Canvas
+        <ReactFlow
+          fitView
+          panOnDrag={false}
+          zoomOnDoubleClick={false}
           key={structure}
           nodes={nodes}
           edges={shownEdges}
@@ -314,8 +335,6 @@ export function ServiceMap({ list, links, marks }: Props) {
           nodesDraggable={false}
           nodesConnectable={false}
           elementsSelectable={false}
-          // Canvas turns this on, but nothing here is selectable, so dragging would only draw an empty box.
-          selectionOnDrag={false}
           panOnScroll={false}
           zoomOnScroll={false}
           // Let the wheel keep scrolling the pane; zoom stays on the controls and pinch.
@@ -323,8 +342,12 @@ export function ServiceMap({ list, links, marks }: Props) {
           minZoom={0.3}
           fitViewOptions={{ padding: 0.12, maxZoom: 1.1 }}
         >
-          <Controls showInteractive={false} />
-        </Canvas>
+          <Background bgColor="var(--sidebar)" />
+          <Controls
+            showInteractive={false}
+            className="gap-px overflow-hidden rounded-md border bg-card p-1 shadow-none! [&>button]:rounded-md [&>button]:border-none! [&>button]:bg-transparent! [&>button]:hover:bg-secondary!"
+          />
+        </ReactFlow>
       </ActiveNodeContext>
     </div>
   );

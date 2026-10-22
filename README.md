@@ -421,7 +421,7 @@ validation and the `sla_flawed_*` ones must fail it.
 ### Frontend
 
 The playground UI lives in `frontend/`: Vite, React 19, TypeScript, Tailwind, shadcn/ui,
-ai-elements, React Flow and CodeMirror. To run it against a local API:
+React Flow and CodeMirror. To run it against a local API:
 
 ```sh
 uv run oakestra-sla-gen serve    # API on http://127.0.0.1:8000
