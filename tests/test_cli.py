@@ -324,10 +324,11 @@ def test_serve_includes_playground_routes_and_reasoning_effort(monkeypatch):
         lambda app, host, port: captured.update(app=app, host=host, port=port),
     )
 
-    code = cli._serve_command(["--reasoning-effort", "high"])
+    code = cli._serve_command(["--reasoning-effort", "high", "--timeout", "90"])
 
     assert code == 0
     assert captured["build_llm_kwargs"]["reasoning_effort"] == "high"
+    assert captured["build_llm_kwargs"]["timeout"] == 90
     assert captured["host"] == "127.0.0.1"
     assert captured["port"] == 8000
     assert "/playground/info" in [route.path for route in captured["app"].routes]

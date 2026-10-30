@@ -9,6 +9,7 @@ from oakestra_sla_gen.generator import (
     SLAGenerationError,
     SLASession,
     _image_mentioned_by_user,
+    build_llm,
     generate_sla,
 )
 from oakestra_sla_gen.models import Clarification, SLARequest
@@ -349,3 +350,10 @@ def test_image_from_restated_assumption_is_not_mistaken_for_user_given(monkeypat
     assert len(fake.calls) == 3
     assert draft.sla["applications"][0]["microservices"][0]["code"] != guess
     assert session.user_texts == ["an api service", "sure, go ahead"]
+
+
+def test_build_llm_bounds_each_call_without_client_retries():
+    llm = build_llm(timeout=42)
+
+    assert llm.request_timeout == 42
+    assert llm.max_retries == 0

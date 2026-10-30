@@ -22,6 +22,10 @@ from .validation import iter_microservices, validate_sla
 # (~10s/SLA, less accurate on image names). See README.
 DEFAULT_MODEL = "qwen/qwen3.8-27b"
 DEFAULT_REASONING_EFFORT = "low"
+# Per LLM call, not per turn. Generous for the ~76s a normal call takes, but it stops a single
+# hung or runaway call before the playground's nginx proxy gives up at 600s. A turn that needs
+# correction rounds makes several calls, so it can still outlast the proxy.
+DEFAULT_TIMEOUT_SECONDS = 300.0
 
 OutputMethod = Literal["prompt", "json_schema", "function_calling"]
 OUTPUT_METHODS: tuple[str, ...] = get_args(OutputMethod)
@@ -87,11 +91,17 @@ def build_llm(
     temperature: float = 0,
     max_tokens: int = 8192,
     reasoning_effort: str | None = DEFAULT_REASONING_EFFORT,
+    timeout: float = DEFAULT_TIMEOUT_SECONDS,
 ) -> ChatOpenAI:
     """`api_key` defaults to a placeholder: local servers ignore it, but the client requires one.
 
     `max_tokens` is generous because reasoning models (gpt-oss, qwen3) spend a
     good part of the budget thinking before they write the JSON.
+
+    The client's own retries are off: it would retry a timed-out call twice more, tripling
+    the wait for a generation that is unlikely to finish faster the second time. The client
+    can't retry other errors but not timeouts, so a brief 429/5xx or a dropped connection now
+    fails right away too. With a local server that's rare, and the user can just try again.
     """
     return ChatOpenAI(
         base_url=base_url,
@@ -100,6 +110,8 @@ def build_llm(
         temperature=temperature,
         max_tokens=max_tokens,
         reasoning_effort=reasoning_effort,
+        timeout=timeout,
+        max_retries=0,
     )
 
 

@@ -13,6 +13,7 @@ from .generator import (
     DEFAULT_METHOD,
     DEFAULT_MODEL,
     DEFAULT_REASONING_EFFORT,
+    DEFAULT_TIMEOUT_SECONDS,
     OUTPUT_METHODS,
     SLAGenerationError,
     SLASession,
@@ -22,6 +23,14 @@ from .generator import (
 )
 from .models import Clarification
 from .validation import iter_microservices, validate_sla
+
+
+def _positive_seconds(value: str) -> float:
+    # 0 or a negative value would make every LLM call time out immediately.
+    seconds = float(value)
+    if seconds <= 0:
+        raise argparse.ArgumentTypeError(f"must be a positive number of seconds, got {value}")
+    return seconds
 
 
 def _add_llm_arguments(parser: argparse.ArgumentParser) -> None:
@@ -34,6 +43,12 @@ def _add_llm_arguments(parser: argparse.ArgumentParser) -> None:
         "--reasoning-effort",
         choices=["low", "medium", "high"],
         default=DEFAULT_REASONING_EFFORT,
+    )
+    parser.add_argument(
+        "--timeout",
+        type=_positive_seconds,
+        default=DEFAULT_TIMEOUT_SECONDS,
+        help="Seconds to wait for a single LLM call before giving up.",
     )
     parser.add_argument(
         "--method",
@@ -62,6 +77,7 @@ def _llm_from_args(args: argparse.Namespace):
         model=args.model,
         api_key=args.api_key,
         reasoning_effort=args.reasoning_effort,
+        timeout=args.timeout,
     )
 
 

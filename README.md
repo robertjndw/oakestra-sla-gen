@@ -151,6 +151,7 @@ are printed and the command exits with `3`.
 | `--model` | `OAKESTRA_SLA_MODEL` | `qwen/qwen3.8-27b` | Model name |
 | `--api-key` | `OPENAI_API_KEY` | `lm-studio` | API key |
 | `--reasoning-effort` | | `low` | `low`, `medium` or `high` |
+| `--timeout` | | `300` | Seconds to wait for a single LLM call. Failed calls aren't retried by the client |
 | `--method` | `OAKESTRA_SLA_METHOD` | `prompt` | Structured output method: `prompt`, `json_schema` or `function_calling`. Pick what your LLM server supports |
 | `--max-retries` | | `3` | Correction rounds before giving up |
 | `--customer-id` | | `Admin` | Oakestra customer ID written into the SLA. With `--sla`, defaults to that file's own |
@@ -221,8 +222,8 @@ uv run oakestra-sla-gen serve          # http://127.0.0.1:8000, OpenAPI docs at 
 uv run oakestra-sla-gen serve --host 0.0.0.0 --port 9000 --model openai/gpt-oss-20b
 ```
 
-`serve` accepts the same `--base-url`, `--model`, `--api-key`, `--reasoning-effort` and
-`--method` flags (and env vars) as generation. They're fixed at startup; everything else is set
+`serve` accepts the same `--base-url`, `--model`, `--api-key`, `--reasoning-effort`, `--timeout`
+and `--method` flags (and env vars) as generation. They're fixed at startup; everything else is set
 per request. A request can still override the method with its own `method` field, which is
 handy for comparing methods against one server.
 
