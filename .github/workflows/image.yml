@@ -8,7 +8,6 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 jobs:
   checks:
@@ -41,6 +40,11 @@ jobs:
   build:
     needs: checks
     runs-on: ubuntu-latest
+    # Only this job pushes images, so checks doesn't get packages: write. On PRs the token is
+    # never used here: login and push are skipped, and docker build doesn't receive it.
+    permissions:
+      contents: read
+      packages: write
     strategy:
       fail-fast: false
       matrix:

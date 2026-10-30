@@ -30,3 +30,12 @@ updates:
     directory: /frontend
     patterns: ["*"]
     multi-ecosystem-group: frontend
+
+  # The workflow belongs to neither side, so its actions get a PR of their own.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
