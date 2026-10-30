@@ -7,7 +7,10 @@ export function titleFor(p: {
   draftCount: number;
   edited: boolean;
   fromHistory: boolean;
+  /** An older draft shown instead of the working copy. */
+  viewedDraft?: number | null;
 }): string {
+  if (p.viewedDraft) return `Draft ${p.viewedDraft}`;
   if (!p.text.trim() && !p.hasSla) return "No draft yet";
   if (p.draftCount === 0 && p.fromHistory) return `From history${p.edited ? ", edited" : ""}`;
   if (p.draftCount === 0) return "Hand-edited SLA";

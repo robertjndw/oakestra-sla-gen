@@ -13,6 +13,12 @@ describe("titleFor", () => {
       "From history, edited",
     );
   });
+
+  it("names an older draft on screen without the working copy's edits", () => {
+    expect(
+      titleFor({ text: "{}", hasSla: true, draftCount: 3, edited: true, fromHistory: false, viewedDraft: 1 }),
+    ).toBe("Draft 1");
+  });
 });
 
 describe("isOutputMode", () => {

@@ -6,6 +6,7 @@ import type {
   SessionResponse,
   Settings,
   Sla,
+  TurnProgress,
   ValidateResponse,
 } from "./types";
 
@@ -55,11 +56,27 @@ const sessionPath = (id: string) => "/playground/sessions/" + encodeURIComponent
 
 export const fetchInfo = () => api<Partial<Info> & ErrorBody>("GET", "/playground/info");
 
-export const startSession = (settings: Settings, description: string, file?: InputFile | null) => {
+/**
+ * Id under which the server reports a turn's progress while its request is open. Anyone holding
+ * it can read the turn's errors, so it has to be random. Not crypto.randomUUID: that only exists
+ * in secure contexts, and the Oakestra addon serves the playground over plain http.
+ */
+export function newTurnId(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+export const startSession = (
+  settings: Settings,
+  description: string,
+  file?: InputFile | null,
+  turnId?: string,
+) => {
   const body: Record<string, unknown> = {
     max_retries: settings.maxRetries,
     check_images: settings.checkImages,
     description,
+    turn_id: turnId,
   };
   // The API takes the file under its kind: `compose` or `sla`.
   if (file) body[file.kind] = file.text;
@@ -68,8 +85,12 @@ export const startSession = (settings: Settings, description: string, file?: Inp
   return api<SessionResult["body"]>("POST", "/playground/sessions", body);
 };
 
-export const answerSession = (id: string, text: string) =>
-  api<SessionResult["body"]>("POST", sessionPath(id) + "/answer", { text });
+export const answerSession = (id: string, text: string, turnId?: string) =>
+  api<SessionResult["body"]>("POST", sessionPath(id) + "/answer", { text, turn_id: turnId });
+
+/** 404 until the turn's request reaches the server and again once it has finished. */
+export const fetchTurnProgress = (turnId: string) =>
+  api<Partial<TurnProgress> & ErrorBody>("GET", "/playground/turns/" + encodeURIComponent(turnId));
 
 export const deleteSession = (id: string) => api<ErrorBody>("DELETE", sessionPath(id));
 

@@ -1,8 +1,11 @@
-import { useEffect, useRef } from "react";
+import { LocateFixedIcon } from "lucide-react";
+import { useEffect, useMemo, useRef } from "react";
+import { highlightField, releaseFields, unhighlightField, useServiceMounted } from "@/components/output/field-highlight";
+import { focusField } from "@/components/output/focus-service";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { answeredText, type QuestionAnswer } from "@/lib/answers";
+import { describeFieldRef, parseFieldRef, type FieldRef } from "@/lib/field-ref";
 import type { FrozenAnswers } from "@/hooks/use-session";
 import type { Clarification } from "@/lib/types";
 
@@ -20,45 +23,62 @@ interface Props {
 export function QuestionForm({ questions, answers, onChange, frozen, interactive }: Props) {
   const update = (i: number, patch: Partial<QuestionAnswer>) =>
     onChange(answers.map((a, j) => (j === i ? { ...a, ...patch } : a)));
+  const refs = useMemo(() => questions.map((q) => parseFieldRef(q.field)), [questions]);
+  // A question can disappear while hovered or focused, e.g. when a new round replaces the form.
+  useEffect(() => () => releaseFields(refs), [refs]);
 
   return (
-    <ol className="flex flex-col gap-2" aria-label="Questions from the model">
+    <ol className="divide-y overflow-hidden rounded-lg border bg-card" aria-label="Questions from the model">
       {questions.map((q, i) => {
         const answer = answers[i] ?? { mode: q.assumption ? "keep" : "answer", text: "" };
+        const ref = refs[i];
         return (
-          <li key={i}>
-            <Card size="sm" className="gap-2 py-3">
-              <CardContent className="flex flex-col gap-2 px-3">
-                {q.topic && (
-                  <span className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
-                    {q.topic}
-                  </span>
-                )}
-                <p className="text-sm font-medium">{`${i + 1}. ${q.question}`}</p>
-                {interactive && !frozen ? (
-                  q.assumption ? (
-                    <AssumptionAnswer
-                      n={i + 1}
-                      assumption={q.assumption}
-                      answer={answer}
-                      onChange={(patch) => update(i, patch)}
-                    />
-                  ) : (
-                    <AnswerBox
-                      n={i + 1}
-                      placeholder="Your answer, or leave it to the model"
-                      value={answer.text}
-                      onChange={(text) => update(i, { text })}
-                    />
-                  )
+          <li
+            key={i}
+            className="flex gap-3 px-3 py-3"
+            onPointerEnter={() => highlightField(ref, "hover")}
+            onPointerLeave={() => unhighlightField(ref, "hover")}
+            onFocus={() => highlightField(ref, "focus")}
+            onBlur={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node | null)) unhighlightField(ref, "focus");
+            }}
+          >
+            <span aria-hidden className="w-3 shrink-0 text-right text-muted-foreground text-xs tabular-nums leading-5">
+              {i + 1}
+            </span>
+            <div className="flex min-w-0 flex-1 flex-col gap-2">
+              {/* The topic is the short handle, so it leads and the full question follows. */}
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 space-y-0.5">
+                  <span className="sr-only">{`Question ${i + 1}: `}</span>
+                  {q.topic && <p className="text-sm font-medium">{q.topic}</p>}
+                  <p className={q.topic ? "text-muted-foreground text-sm" : "text-sm font-medium"}>{q.question}</p>
+                </div>
+                {ref && <ShowField fieldRef={ref} />}
+              </div>
+              {interactive && !frozen ? (
+                q.assumption ? (
+                  <AssumptionAnswer
+                    n={i + 1}
+                    assumption={q.assumption}
+                    answer={answer}
+                    onChange={(patch) => update(i, patch)}
+                  />
                 ) : (
-                  <>
-                    {q.assumption && <Assumed text={q.assumption} />}
-                    {frozen && <Reply q={q} answer={frozen.answers[i]} keepAll={frozen.keepAll} />}
-                  </>
-                )}
-              </CardContent>
-            </Card>
+                  <AnswerBox
+                    n={i + 1}
+                    placeholder="Your answer, or leave it to the model"
+                    value={answer.text}
+                    onChange={(text) => update(i, { text })}
+                  />
+                )
+              ) : (
+                <>
+                  {q.assumption && <Assumed text={q.assumption} />}
+                  {frozen && <Reply q={q} answer={frozen.answers[i]} keepAll={frozen.keepAll} />}
+                </>
+              )}
+            </div>
           </li>
         );
       })}
@@ -66,10 +86,29 @@ export function QuestionForm({ questions, answers, onChange, frozen, interactive
   );
 }
 
+/** Only offered while the service's card is on screen, i.e. the Visual view shows it. */
+function ShowField({ fieldRef }: { fieldRef: FieldRef }) {
+  const shown = useServiceMounted(fieldRef.service);
+  if (!shown) return null;
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="xs"
+      className="-mt-0.5 shrink-0 text-muted-foreground"
+      aria-label={`Show ${describeFieldRef(fieldRef)}`}
+      onClick={() => focusField(fieldRef)}
+    >
+      <LocateFixedIcon />
+      Show
+    </Button>
+  );
+}
+
 function Assumed({ text }: { text: string }) {
   return (
     <p className="min-w-0 text-sm">
-      <strong className="text-amber">Assumed: </strong>
+      <span className="mr-2 text-amber text-xs font-medium">Assumed</span>
       {text}
     </p>
   );
@@ -126,7 +165,7 @@ function AssumptionAnswer({
 
   if (answer.mode === "keep") {
     return (
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex items-baseline justify-between gap-3">
         <Assumed text={assumption} />
         <Button
           ref={changeRef}

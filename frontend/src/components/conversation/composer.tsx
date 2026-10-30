@@ -13,6 +13,7 @@ import { composerModel, readInputFile, type ActiveForm } from "./composer-logic"
 const IS_MAC = /Mac|iPhone|iPad/.test(globalThis.navigator?.platform || globalThis.navigator?.userAgent || "");
 const ACCEPT = ".yml,.yaml,.json,application/x-yaml,text/yaml,application/json";
 const KIND_LABEL = { compose: "Compose", sla: "SLA" } as const;
+const KBD = "rounded-sm border bg-muted px-1 font-sans text-[11px]";
 
 interface Props {
   text: string;
@@ -81,7 +82,7 @@ export function Composer({ text, onTextChange, inputFile, onInputFileChange, for
 
   return (
     <div
-      className={cn("rounded-xl", dragOver && "ring-2 ring-primary/60")}
+      className={cn("rounded-lg", dragOver && "ring-2 ring-primary/60")}
       onDragOver={(e) => {
         if (!isFileDrag(e)) return;
         e.preventDefault(); // otherwise the browser navigates to the dropped file
@@ -170,10 +171,9 @@ export function Composer({ text, onTextChange, inputFile, onInputFileChange, for
                   size="sm"
                   disabled={!canAttach}
                   onClick={() => fileInputRef.current?.click()}
-                  aria-label="Upload docker compose or SLA"
                 >
-                  <PaperclipIcon className="size-4" />
-                  Upload compose or SLA
+                  <PaperclipIcon className="size-4" aria-hidden />
+                  Attach compose or SLA
                 </InputGroupButton>
               )}
               <Hint kind={model.hint} action={state.sessionId ? "update" : "generate"} />
@@ -213,14 +213,14 @@ function Hint({ kind, action }: { kind: ReturnType<typeof composerModel>["hint"]
   if (!kind) return null;
   const cls = "hidden text-muted-foreground text-xs sm:inline";
   if (kind === "answer-or-change") {
-    return <span className={cls}>Answer a question or describe a change. Happy with the assumptions? Accept the draft.</span>;
+    return <span className={cls}>Answer a question, describe a change, or accept the draft.</span>;
   }
   if (kind === "answer-one") {
     return <span className={cls}>Answer at least one question so the model can draft an SLA.</span>;
   }
   return (
     <span className={cls}>
-      <kbd className="font-sans">{IS_MAC ? "⌘" : "Ctrl"}</kbd> <kbd className="font-sans">Enter</kbd>
+      <kbd className={KBD}>{IS_MAC ? "⌘" : "Ctrl"}</kbd> <kbd className={KBD}>Enter</kbd>
       {` to ${action}`}
     </span>
   );

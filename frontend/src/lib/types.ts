@@ -35,6 +35,8 @@ export interface Clarification {
   topic: string;
   question: string;
   assumption: string | null;
+  /** What the question is about, "<microservice_name>.<key>" or "<microservice_name>". A hint, see parseFieldRef. */
+  field?: string | null;
 }
 
 export interface Attempt {
@@ -91,4 +93,9 @@ export interface InputFile {
   kind: InputFileKind;
   /** Set for an SLA reopened from the history rather than uploaded. */
   origin?: "history";
+}
+
+/** Body of GET /playground/turns/{id}: the attempts a running turn has finished so far. */
+export interface TurnProgress {
+  attempts: Attempt[];
 }

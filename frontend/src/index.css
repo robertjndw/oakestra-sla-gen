@@ -1,13 +1,16 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/inter";
+@import "@fontsource-variable/ibm-plex-sans";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
     --font-heading: var(--font-sans);
-    --font-sans: 'Inter Variable', sans-serif;
+    --font-sans: 'IBM Plex Sans Variable', ui-sans-serif, system-ui, sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
     --color-amber: var(--amber);
     --color-amber-dot: var(--amber-dot);
     --color-amber-soft: var(--amber-soft);
@@ -49,26 +52,26 @@
 }
 
 :root {
-    --background: #f4f5f8;
-    --foreground: #1a1d26;
+    --background: #f4f5f6;
+    --foreground: #17191c;
     --card: #ffffff;
-    --card-foreground: #1a1d26;
+    --card-foreground: #17191c;
     --popover: #ffffff;
-    --popover-foreground: #1a1d26;
-    --primary: #2c6a4c;
+    --popover-foreground: #17191c;
+    --primary: #1f6a4c;
     --primary-foreground: #ffffff;
-    --secondary: #eceef3;
-    --secondary-foreground: #1a1d26;
-    --muted: #eceef3;
-    --muted-foreground: #5a6170;
-    --accent: #e3efe7;
-    --accent-foreground: #22573e;
+    --secondary: #eceef0;
+    --secondary-foreground: #17191c;
+    --muted: #eceef0;
+    --muted-foreground: #5c636c;
+    --accent: #e2efe8;
+    --accent-foreground: #1a5a40;
     --destructive: #b1372b;
-    --border: #d9dce4;
-    --input: #d9dce4;
-    --ring: #2c6a4c;
+    --border: #dfe2e5;
+    --input: #d3d7db;
+    --ring: #1f6a4c;
     --radius: 0.625rem;
-    --sidebar: #f8f9fb;
+    --sidebar: #f8f9fa;
     --sidebar-foreground: var(--foreground);
     --sidebar-primary: var(--primary);
     --sidebar-primary-foreground: var(--primary-foreground);
@@ -87,25 +90,25 @@
 }
 
 .dark {
-    --background: #121419;
-    --foreground: #e3e6ed;
-    --card: #181b22;
-    --card-foreground: #e3e6ed;
-    --popover: #181b22;
-    --popover-foreground: #e3e6ed;
-    --primary: #72c497;
-    --primary-foreground: #0d1a13;
-    --secondary: #1f232c;
-    --secondary-foreground: #e3e6ed;
-    --muted: #1f232c;
-    --muted-foreground: #9aa1b0;
-    --accent: #1d3027;
+    --background: #191a1c;
+    --foreground: #e4e6e9;
+    --card: #1f2023;
+    --card-foreground: #e4e6e9;
+    --popover: #232427;
+    --popover-foreground: #e4e6e9;
+    --primary: #6cc093;
+    --primary-foreground: #0f1f17;
+    --secondary: #2a2c30;
+    --secondary-foreground: #e4e6e9;
+    --muted: #2a2c30;
+    --muted-foreground: #9ba1a9;
+    --accent: #1e3328;
     --accent-foreground: #8fd4ad;
     --destructive: #f08b7f;
-    --border: #2a2f3a;
-    --input: #2a2f3a;
-    --ring: #72c497;
-    --sidebar: #15181e;
+    --border: #303237;
+    --input: #3a3d42;
+    --ring: #6cc093;
+    --sidebar: #1c1d20;
     --sidebar-foreground: var(--foreground);
     --sidebar-primary: var(--primary);
     --sidebar-primary-foreground: var(--primary-foreground);

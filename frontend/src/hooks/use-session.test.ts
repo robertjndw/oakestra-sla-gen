@@ -1,14 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { act, renderHook } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   initialState,
   isEdited,
   selectActiveForm,
   sessionReducer,
+  TURN_POLL_INTERVAL_MS,
+  useSessionController,
   type ApiResponse,
+  type Round,
   type SessionAction,
   type SessionState,
 } from "./use-session";
-import type { Sla } from "@/lib/types";
+import type { Attempt, Sla } from "@/lib/types";
 
 const slaV1: Sla = { applications: [{ application_name: "a", microservices: [{ microservice_name: "web", memory: 512 }] }] };
 const slaV2: Sla = { applications: [{ application_name: "a", microservices: [{ microservice_name: "web", memory: 1024 }] }] };
@@ -276,5 +280,171 @@ describe("accept, settings, new session", () => {
       historySeed: "shop",
     });
     expect(isEdited(s)).toBe(false);
+  });
+});
+
+describe("turn progress", () => {
+  const rejected: Attempt = { attempt: 1, errors: ["e1", "e2"] };
+  const pending = (s: SessionState) => s.rounds.find((r): r is Extract<Round, { kind: "pending" }> => r.kind === "pending");
+  const progress = (token: number, attempts: Attempt[]): SessionAction => ({ type: "turn-progress", token, attempts });
+
+  it("adds finished attempts to the pending round", () => {
+    const s = run(initialState(), start(1), progress(1, [rejected]));
+    expect(pending(s)?.attempts).toEqual([rejected]);
+  });
+
+  it("takes the attempt count from the settings at turn-start", () => {
+    const changed = { ...initialState().settings, maxRetries: 5 };
+    let s = run(initialState(), { type: "set-settings", settings: changed }, start(1));
+    // The first turn's settings are still editable while it runs.
+    s = run(s, { type: "set-settings", settings: initialState().settings });
+    expect(pending(s)?.maxAttempts).toBe(5);
+  });
+
+  it("returns the same state for a poll with nothing new", () => {
+    const s = run(initialState(), start(1), progress(1, [rejected]));
+    expect(run(s, progress(1, [rejected]))).toBe(s);
+    expect(run(s, progress(1, []))).toBe(s);
+  });
+
+  it("ignores a poll that returns after the turn ended", () => {
+    const done = run(initialState(), start(1), respond(1, ok(slaV1)));
+    expect(run(done, progress(1, [rejected]))).toBe(done);
+    const replaced = run(initialState(), start(1), { type: "new-session", token: 2 });
+    expect(run(replaced, progress(1, [rejected]))).toBe(replaced);
+    const superseded = run(initialState(), start(1), start(2));
+    expect(run(superseded, progress(1, [rejected]))).toBe(superseded);
+  });
+});
+
+describe("progress polling", () => {
+  interface Deferred {
+    resolve: (res: Response) => void;
+  }
+  let post: Deferred | null;
+  let attempts: Attempt[];
+  let polls: string[];
+  let postBodies: Record<string, unknown>[];
+  /** Answers each progress poll; tests swap it to delay or fail one. */
+  let pollReply: () => Promise<Response>;
+
+  const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    post = null;
+    attempts = [];
+    polls = [];
+    postBodies = [];
+    pollReply = () => Promise.resolve(json({ attempts }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init: RequestInit) => {
+        if (init.method === "GET") {
+          polls.push(url);
+          return pollReply();
+        }
+        if (init.method === "DELETE") return Promise.resolve(new Response(null, { status: 204 }));
+        postBodies.push(JSON.parse(init.body as string));
+        return new Promise<Response>((resolve) => {
+          post = { resolve };
+        });
+      }),
+    );
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  const tick = () => act(() => vi.advanceTimersByTimeAsync(TURN_POLL_INTERVAL_MS));
+  const pendingAttempts = (s: SessionState) => {
+    const r = s.rounds.find((x) => x.kind === "pending");
+    return r?.kind === "pending" ? r.attempts : null;
+  };
+
+  it("polls the turn the request was sent with until the response arrives", async () => {
+    const { result } = renderHook(() => useSessionController());
+    let sent!: Promise<void>;
+    act(() => {
+      sent = result.current.send("an nginx server");
+    });
+    const turnId = postBodies[0].turn_id as string;
+    expect(turnId).toMatch(/^[0-9a-f]{32}$/);
+
+    await tick();
+    expect(polls).toEqual([`/api/playground/turns/${turnId}`]);
+    expect(pendingAttempts(result.current.state)).toEqual([]);
+
+    attempts = [{ attempt: 1, errors: ["bad port"] }];
+    await tick();
+    expect(pendingAttempts(result.current.state)).toEqual(attempts);
+
+    await act(async () => {
+      post!.resolve(json({ session_id: "s1", sla: slaV1, questions: [], attempts: [...attempts, { attempt: 2, errors: [] }] }));
+      await sent;
+    });
+    const count = polls.length;
+    await tick();
+    await tick();
+    expect(polls).toHaveLength(count);
+    expect(result.current.state.rounds.at(-1)?.kind).toBe("draft");
+  });
+
+  it("keeps polling through a 404 from before the request reached the server", async () => {
+    pollReply = () => {
+      pollReply = () => Promise.resolve(json({ attempts }));
+      return Promise.resolve(json({ detail: "unknown turn" }, 404));
+    };
+    const { result } = renderHook(() => useSessionController());
+    act(() => {
+      void result.current.send("hi");
+    });
+    attempts = [{ attempt: 1, errors: ["e"] }];
+    await tick();
+    expect(pendingAttempts(result.current.state)).toEqual([]);
+    await tick();
+    expect(pendingAttempts(result.current.state)).toEqual(attempts);
+  });
+
+  it("stops polling on New session", async () => {
+    const { result } = renderHook(() => useSessionController());
+    act(() => {
+      void result.current.send("hi");
+    });
+    await tick();
+    act(() => result.current.newSession());
+    const count = polls.length;
+    await tick();
+    await tick();
+    expect(polls).toHaveLength(count);
+    expect(result.current.state.rounds).toEqual([]);
+  });
+
+  it("drops a poll that comes back after the response", async () => {
+    let answerPoll: ((res: Response) => void) | null = null;
+    pollReply = () =>
+      new Promise<Response>((resolve) => {
+        answerPoll = resolve;
+      });
+    const { result } = renderHook(() => useSessionController());
+    let sent!: Promise<void>;
+    act(() => {
+      sent = result.current.send("hi");
+    });
+    await tick();
+    expect(answerPoll).not.toBeNull();
+    await act(async () => {
+      post!.resolve(json({ session_id: "s1", sla: slaV1, questions: [], attempts: [{ attempt: 1, errors: [] }] }));
+      await sent;
+    });
+    const settled = result.current.state;
+    await act(async () => {
+      answerPoll!(json({ attempts: [{ attempt: 1, errors: ["late"] }] }));
+    });
+    expect(result.current.state).toBe(settled);
+    await tick();
+    expect(polls).toHaveLength(1);
   });
 });

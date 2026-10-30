@@ -14,6 +14,17 @@ export function readRaw(which: StorageArea, key: string): string | null {
   }
 }
 
+/** Best effort. Never throws. False when the value was not saved. */
+export function writeRaw(which: StorageArea, key: string, value: string): boolean {
+  try {
+    area(which).setItem(key, value);
+    return true;
+  } catch {
+    // private mode, blocked site data or a full quota: the value just won't persist
+    return false;
+  }
+}
+
 /** Never throws: a missing value, bad JSON and invalid shapes all give `fallback`. */
 export function parseStored<T>(raw: string | null, fallback: T, isValid?: (v: unknown) => v is T): T {
   if (raw === null) return fallback;
@@ -37,13 +48,7 @@ export function readStored<T>(
 
 /** Best effort. Never throws. False when the value was not saved. */
 export function writeStored(which: StorageArea, key: string, value: unknown): boolean {
-  try {
-    area(which).setItem(key, JSON.stringify(value));
-    return true;
-  } catch {
-    // private mode, blocked site data or a full quota: the value just won't persist
-    return false;
-  }
+  return writeRaw(which, key, JSON.stringify(value));
 }
 
 export function removeStored(which: StorageArea, key: string): void {

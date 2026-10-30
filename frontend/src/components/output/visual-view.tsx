@@ -29,16 +29,6 @@ export function VisualView({ sla, previous, errors, parseError }: Props) {
   const apps = sla.applications ?? [];
   const description = apps.length === 1 ? apps[0].application_desc : "";
   const exposed = list.some((s) => s.ms.port);
-  const caption = [
-    links.length
-      ? "Arrows point to the service whose IP another one uses, labelled with the variable that holds it."
-      : list.length > 1
-        ? "No connections: no service uses another service's IP."
-        : "",
-    exposed ? "Dashed lines are ports opened to the outside." : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
   const multiApp = apps.length > 1;
 
   return (
@@ -52,7 +42,7 @@ export function VisualView({ sla, previous, errors, parseError }: Props) {
         </Alert>
       )}
       <div className="space-y-1">
-        <p className="text-base font-medium">{summarize(sla, list)}</p>
+        <p className="text-[15px] font-semibold">{summarize(sla, list)}</p>
         {description && <p className="text-sm text-muted-foreground">{description}</p>}
       </div>
       {problems.global.length > 0 && (
@@ -72,10 +62,10 @@ export function VisualView({ sla, previous, errors, parseError }: Props) {
           <Suspense fallback={<div className="h-64 w-full animate-pulse rounded-lg bg-muted motion-reduce:animate-none" />}>
             <ServiceMap list={list} links={links} marks={marks} />
           </Suspense>
-          {caption && <p className="text-xs text-muted-foreground">{caption}</p>}
+          <MapLegend links={links.length > 0} exposed={exposed} several={list.length > 1} />
         </div>
       )}
-      <div className="space-y-3">
+      <div className="space-y-4">
         {list.map((s, i) => (
           <div key={s.key + i} className="space-y-3">
             {multiApp && (i === 0 || list[i - 1].app !== s.app) && (
@@ -90,6 +80,44 @@ export function VisualView({ sla, previous, errors, parseError }: Props) {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function LegendLine({ dashed }: { dashed?: boolean }) {
+  return (
+    <svg width="28" height="8" viewBox="0 0 28 8" aria-hidden className="shrink-0">
+      <line
+        x1="0"
+        y1="4"
+        x2="22"
+        y2="4"
+        stroke={dashed ? "var(--ring)" : "var(--primary)"}
+        strokeWidth="1.3"
+        strokeDasharray={dashed ? "4 3" : undefined}
+      />
+      <path d="M22 1 L28 4 L22 7 Z" fill={dashed ? "var(--ring)" : "var(--primary)"} />
+    </svg>
+  );
+}
+
+function MapLegend({ links, exposed, several }: { links: boolean; exposed: boolean; several: boolean }) {
+  if (!links && !exposed && !several) return null;
+  return (
+    <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground">
+      {links && (
+        <span className="inline-flex items-center gap-2">
+          <LegendLine />
+          Uses the service&apos;s IP, labelled with the variable that holds it
+        </span>
+      )}
+      {!links && several && <span>No service uses another service&apos;s IP</span>}
+      {exposed && (
+        <span className="inline-flex items-center gap-2">
+          <LegendLine dashed />
+          Port open to the outside
+        </span>
+      )}
     </div>
   );
 }

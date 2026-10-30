@@ -122,7 +122,7 @@ function OutsideNode({ id, data }: NodeProps<OutsideFlowNode>) {
   return (
     <MapNode
       handles={{ target: false, source: true }}
-      className={`service-map-node ${dimClass} items-center justify-center rounded-full bg-muted`}
+      className={`service-map-node ${dimClass} items-center justify-center border border-dashed border-muted-foreground/40 bg-transparent ring-0`}
       style={{ width: OUTSIDE_W, height: OUTSIDE_H }}
     >
       <HoverCard openDelay={250} closeDelay={100}>
@@ -131,7 +131,7 @@ function OutsideNode({ id, data }: NodeProps<OutsideFlowNode>) {
             // Focusable so keyboard users get the same port summary as a hover.
             tabIndex={0}
             {...handlers}
-            className="flex h-full items-center justify-center rounded-full text-xs font-medium text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            className="flex h-full items-center justify-center rounded-md text-xs font-medium text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
           >
             Outside
           </span>
@@ -185,6 +185,8 @@ function ServiceEdge(props: EdgeProps) {
     </>
   );
 }
+
+const FIT_PAD = { top: 8, bottom: 44, side: 12 };
 
 const nodeTypes = { service: ServiceNode, outside: OutsideNode };
 const edgeTypes = { link: ServiceEdge, port: ServiceEdge };
@@ -308,7 +310,10 @@ export function ServiceMap({ list, links, marks }: Props) {
     [edges, lit],
   );
 
-  const height = Math.min(340, Math.max(260, layout.height + 56));
+  // The controls are a horizontal strip in the bottom-left corner, so fitView keeps a band free
+  // below the nodes for them instead of the box needing slack all around. layout.height already
+  // contains the layout's own padding.
+  const height = Math.min(340, Math.max(150, layout.height + FIT_PAD.top + FIT_PAD.bottom));
 
   return (
     <div
@@ -340,12 +345,22 @@ export function ServiceMap({ list, links, marks }: Props) {
           // Let the wheel keep scrolling the pane; zoom stays on the controls and pinch.
           preventScrolling={false}
           minZoom={0.3}
-          fitViewOptions={{ padding: 0.12, maxZoom: 1.1 }}
+          fitViewOptions={{
+            padding: {
+              top: `${FIT_PAD.top}px`,
+              bottom: `${FIT_PAD.bottom}px`,
+              left: `${FIT_PAD.side}px`,
+              right: `${FIT_PAD.side}px`,
+            },
+            maxZoom: 1,
+          }}
         >
-          <Background bgColor="var(--sidebar)" />
+          {/* The default dot grid is texture that doesn't tell anyone anything. */}
+          <Background bgColor="var(--sidebar)" color="transparent" />
           <Controls
             showInteractive={false}
-            className="gap-px overflow-hidden rounded-md border bg-card p-1 shadow-none! [&>button]:rounded-md [&>button]:border-none! [&>button]:bg-transparent! [&>button]:hover:bg-secondary!"
+            orientation="horizontal"
+            className="gap-px overflow-hidden rounded-md border bg-card p-0.5 shadow-none! [&>button]:rounded-md [&>button]:border-none! [&>button]:bg-transparent! [&>button]:hover:bg-secondary!"
           />
         </ReactFlow>
       </ActiveNodeContext>

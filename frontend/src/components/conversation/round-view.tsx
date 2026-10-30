@@ -1,4 +1,3 @@
-import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import { Message, MessageContent } from "@/components/ui/message";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +7,7 @@ import type { QuestionAnswer } from "@/lib/answers";
 import type { QuestionRound, Round } from "@/hooks/use-session";
 import { plural } from "@/lib/format";
 import type { Sla } from "@/lib/types";
+import { useDraftNav } from "@/components/output/draft-view";
 import { Attempts } from "./attempts";
 import { PendingRound } from "./pending-round";
 import { QuestionForm } from "./question-form";
@@ -23,28 +23,34 @@ export interface RoundViewProps {
   newSession: () => void;
 }
 
-export function RoundView({ round, activeFormId, answers, onAnswersChange, loadCandidate, newSession }: RoundViewProps) {
+export function RoundView({
+  round,
+  activeFormId,
+  answers,
+  onAnswersChange,
+  loadCandidate,
+  newSession,
+}: RoundViewProps) {
   switch (round.kind) {
     case "user":
       return (
-        <Message align="end">
-          <MessageContent>
-            <Bubble align="end" variant="muted">
-              <BubbleContent className="flex flex-col gap-2">
-                {round.fileName && (
-                  <Badge variant="outline" className="max-w-full bg-background">
-                    <FileTextIcon aria-hidden />
-                    <span className="truncate">{round.fileName}</span>
-                  </Badge>
-                )}
-                <p className="whitespace-pre-wrap break-words">{round.text}</p>
-              </BubbleContent>
-            </Bubble>
+        <Message>
+          <MessageContent className="gap-1.5">
+            <span className="text-muted-foreground text-xs font-medium">You</span>
+            <div className="flex flex-col gap-2 rounded-lg border bg-card px-3 py-2">
+              {round.fileName && (
+                <Badge variant="secondary" className="max-w-full">
+                  <FileTextIcon aria-hidden />
+                  <span className="truncate">{round.fileName}</span>
+                </Badge>
+              )}
+              <p className="whitespace-pre-wrap break-words leading-relaxed">{round.text}</p>
+            </div>
           </MessageContent>
         </Message>
       );
     case "pending":
-      return <PendingRound first={round.first} startedAt={round.startedAt} />;
+      return <PendingRound round={round} />;
     case "draft":
     case "ask":
       return (
@@ -136,6 +142,7 @@ function QuestionRoundView({
   answers: QuestionAnswer[];
   onAnswersChange: (answers: QuestionAnswer[]) => void;
 }) {
+  const draftNav = useDraftNav();
   const n = round.questions.length;
   const isDraft = round.kind === "draft";
   let note: string | null = null;
@@ -154,10 +161,21 @@ function QuestionRoundView({
     : round.unchangedDraft !== null
       ? `Draft ${round.unchangedDraft} is unchanged`
       : "No draft yet";
+  // With a single draft there is nothing else the pane could show.
+  const draftNo = round.kind === "draft" && draftNav.latest > 1 ? round.draft : null;
+  const shown = draftNo !== null && (draftNav.viewed ?? draftNav.latest) === draftNo;
   return (
     <Message>
       <MessageContent className="gap-3">
-        <StatusHead status={isDraft ? "ok" : "ask"} title={title} meta={meta} />
+        <StatusHead
+          status={isDraft ? "ok" : "ask"}
+          title={title}
+          meta={meta}
+          onTitleClick={draftNo !== null ? () => draftNav.onView(draftNo) : undefined}
+          titleLabel={draftNo !== null ? `View draft ${draftNo} in the SLA pane` : undefined}
+          current={shown}
+          viewing={draftNo !== null && draftNav.viewed === draftNo}
+        />
         {isDraft && (
           <ul className="list-disc space-y-0.5 pl-5">
             {round.changes.map((c, i) => (
