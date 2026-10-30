@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from helpers import COMPOSE_YAML, EXISTING_SLA_JSON, FakeStructuredLLM, _ok, _request
 from langchain_core.messages import HumanMessage
 
+from oakestra_sla_gen.models import SLARequest
 from oakestra_sla_gen.server import create_app
 
 
@@ -50,9 +51,24 @@ def test_generate_reports_errors_when_retries_run_out():
 
     assert response.status_code == 422
     body = response.json()
+    assert body["kind"] == "generation_failed"
     assert body["errors"]
     assert body["last_candidate"] is not None
     assert len(fake.calls) == 2
+
+
+def test_generate_reports_questions_when_nothing_can_be_drafted():
+    vague = SLARequest(
+        applications=[], questions=[{"topic": "application", "question": "What should run?"}]
+    )
+    client, _ = _client([_ok(vague)])
+
+    response = client.post("/generate", json={"description": "deploy my app"})
+
+    assert response.status_code == 422
+    body = response.json()
+    assert body["kind"] == "needs_clarification"
+    assert body["questions"][0]["question"] == "What should run?"
 
 
 def test_generate_maps_llm_connection_errors_to_502():

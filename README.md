@@ -237,11 +237,12 @@ take the raw file text and can't be combined. Next to either one, `description` 
 notes. `method` is optional and defaults to the server's `--method`. `max_retries` is capped
 at 10. Error responses:
 
-- `422` with `{"detail", "errors", "last_candidate"}` if no valid SLA came out within
-  `max_retries`
-- `422` with `{"detail", "questions"}` if the input was too vague to draft anything
-- `422` with a readable `msg` if `compose` isn't a usable compose file or `sla` isn't usable
-  JSON with at least one application
+- `422` with `{"kind": "generation_failed", "detail", "errors", "last_candidate"}` if no valid
+  SLA came out within `max_retries`
+- `422` with `{"kind": "needs_clarification", "detail", "questions"}` if the input was too vague
+  to draft anything
+- `422` without a `kind`, but with a readable `msg`, if the request itself is invalid, e.g.
+  `compose` isn't a usable compose file or `sla` isn't usable JSON with at least one application
 - `502` if the LLM server failed
 
 `/generate` is single-shot: it doesn't expose the interactive session, so open questions come

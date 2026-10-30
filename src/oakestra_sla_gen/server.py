@@ -1,7 +1,7 @@
 """HTTP API around the generator and validator. Needs the `server` extra (FastAPI)."""
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Literal
 
 import openai
 from fastapi import FastAPI, Request
@@ -60,13 +60,17 @@ class GenerateRequest(BaseModel):
         return self._customer_id
 
 
+# Both of these are 422s, as is FastAPI's own response to a bad request body. `kind` lets a
+# client tell them apart without guessing from which keys are present.
 class GenerationFailure(BaseModel):
+    kind: Literal["generation_failed"] = "generation_failed"
     detail: str
     errors: list[str]
     last_candidate: dict[str, Any] | None
 
 
 class ClarificationNeeded(BaseModel):
+    kind: Literal["needs_clarification"] = "needs_clarification"
     detail: str
     questions: list[dict[str, Any]]
 
@@ -106,7 +110,10 @@ def create_app(
     @app.post(
         "/generate",
         responses={
-            422: {"model": GenerationFailure, "description": "No valid SLA within max_retries"},
+            422: {
+                "model": GenerationFailure | ClarificationNeeded,
+                "description": "No valid SLA within max_retries, or the input needs clarification",
+            },
             502: {"description": "The LLM server could not be reached or returned an error"},
         },
     )
