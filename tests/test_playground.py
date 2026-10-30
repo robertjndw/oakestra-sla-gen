@@ -1,5 +1,6 @@
 """Playground HTTP API tests with a fake structured-output runnable, no network involved."""
 
+import pytest
 from fastapi.testclient import TestClient
 from helpers import COMPOSE_YAML, EXISTING_SLA_JSON, FakeStructuredLLM, _ok, _request
 from langchain_core.messages import HumanMessage
@@ -183,3 +184,173 @@ def test_a_third_session_evicts_the_oldest(monkeypatch):
     assert evicted.status_code == 404
     assert client.delete(f"/playground/sessions/{ids[1]}").status_code == 204
     assert client.delete(f"/playground/sessions/{ids[2]}").status_code == 204
+
+
+class _PollingLLM(FakeStructuredLLM):
+    """Polls the progress route from inside the turn, right before each LLM call."""
+
+    def __init__(self, responses, turn_id):
+        super().__init__(responses)
+        self.turn_id = turn_id
+        self.client: TestClient | None = None
+        self.polls: list = []
+
+    def invoke(self, messages):
+        response = self.client.get(f"/playground/turns/{self.turn_id}")
+        self.polls.append((response.status_code, response.json()))
+        return super().invoke(messages)
+
+
+def _polling_client(responses, turn_id):
+    fake = _PollingLLM(responses, turn_id)
+    fake.client = TestClient(create_app(lambda method: fake))
+    return fake.client, fake
+
+
+TURN_ID = "0f8e2c1a-5b7d-4c3e-9a10-2b3c4d5e6f70"
+
+
+def test_turn_progress_shows_finished_attempts_while_the_turn_runs():
+    client, fake = _polling_client(
+        [_ok(_request("nginx", "nginx")), _ok(_request("nginx"))], TURN_ID
+    )
+
+    response = client.post(
+        "/playground/sessions", json={"description": "two nginx", "turn_id": TURN_ID}
+    )
+
+    assert response.status_code == 200
+    first, second = fake.polls
+    assert first == (200, {"attempts": []})
+    assert second[0] == 200
+    assert [a["attempt"] for a in second[1]["attempts"]] == [1]
+    assert second[1]["attempts"][0]["errors"]
+    # The POST response is unchanged by the turn id.
+    assert set(response.json()) == {"session_id", "sla", "questions", "attempts"}
+
+
+def test_turn_progress_is_gone_once_the_turn_ends():
+    client, _ = _client([_ok(_request("nginx")), _ok(_request("nginx", "nginx"))])
+
+    start = client.post(
+        "/playground/sessions",
+        json={"description": "nginx", "turn_id": TURN_ID, "max_retries": 1},
+    )
+    assert client.get(f"/playground/turns/{TURN_ID}").status_code == 404
+
+    # A failed turn is cleaned up as well.
+    answer = client.post(
+        f"/playground/sessions/{start.json()['session_id']}/answer",
+        json={"text": "two", "turn_id": TURN_ID},
+    )
+    assert answer.status_code == 422
+    assert client.get(f"/playground/turns/{TURN_ID}").status_code == 404
+
+
+def test_turn_progress_works_for_answers():
+    turn_id = "answer-turn-1"
+    client, fake = _polling_client([_ok(_request("nginx")), _ok(_request("redis"))], turn_id)
+    session_id = client.post("/playground/sessions", json={"description": "nginx"}).json()[
+        "session_id"
+    ]
+
+    response = client.post(
+        f"/playground/sessions/{session_id}/answer", json={"text": "redis", "turn_id": turn_id}
+    )
+
+    assert response.status_code == 200
+    # The start had no turn id, so its poll found nothing; the answer's did.
+    assert [status for status, _ in fake.polls] == [404, 200]
+
+
+def test_unknown_turn_returns_404():
+    client, _ = _client([])
+
+    assert client.get("/playground/turns/doesnotexist").status_code == 404
+
+
+def test_turn_progress_is_unregistered_after_an_llm_error():
+    class Boom(FakeStructuredLLM):
+        def invoke(self, messages):
+            raise RuntimeError("model server down")
+
+    fake = Boom([])
+    client = TestClient(create_app(lambda method: fake), raise_server_exceptions=False)
+
+    client.post("/playground/sessions", json={"description": "nginx", "turn_id": TURN_ID})
+
+    assert client.get(f"/playground/turns/{TURN_ID}").status_code == 404
+
+
+@pytest.mark.parametrize("turn_id", ["short", "x" * 65, "has spaces in it", "../../etc/passwd", 7])
+def test_invalid_turn_id_is_rejected(turn_id):
+    client, fake = _client([_ok(_request("nginx"))])
+
+    response = client.post(
+        "/playground/sessions", json={"description": "nginx", "turn_id": turn_id}
+    )
+
+    assert response.status_code == 422
+    assert fake.calls == []
+
+
+def test_a_reused_turn_id_keeps_pointing_at_the_first_turn():
+    from oakestra_sla_gen import playground
+
+    store = {}
+
+    class Nested(FakeStructuredLLM):
+        def invoke(self, messages):
+            # The first turn starts a second one with the same id while it is still running.
+            if len(self.calls) == 0:
+                super().invoke(messages)
+                store["inner"] = client.post(
+                    "/playground/sessions", json={"description": "nginx", "turn_id": TURN_ID}
+                )
+                store["poll"] = client.get(f"/playground/turns/{TURN_ID}")
+                return self.responses[0]
+            return super().invoke(messages)
+
+    fake = Nested([_ok(_request("nginx")), _ok(_request("nginx"))])
+    client = TestClient(create_app(lambda method: fake))
+    assert playground.MAX_TURNS > 1
+
+    outer = client.post("/playground/sessions", json={"description": "nginx", "turn_id": TURN_ID})
+
+    assert outer.status_code == 200
+    assert store["inner"].status_code == 200
+    # The inner turn finished first; it must not have removed the outer turn's entry.
+    assert store["poll"].status_code == 200
+    assert client.get(f"/playground/turns/{TURN_ID}").status_code == 404
+
+
+def test_the_oldest_running_turn_is_evicted_past_the_cap(monkeypatch):
+    from oakestra_sla_gen import playground
+
+    monkeypatch.setattr(playground, "MAX_TURNS", 1)
+    store = {}
+
+    class Nested(FakeStructuredLLM):
+        def invoke(self, messages):
+            if len(self.calls) == 0:
+                super().invoke(messages)
+                store["inner"] = client.post(
+                    "/playground/sessions", json={"description": "nginx", "turn_id": "inner-turn"}
+                )
+                return self.responses[0]
+            store["outer_poll"] = client.get("/playground/turns/outer-turn")
+            store["inner_poll"] = client.get("/playground/turns/inner-turn")
+            return super().invoke(messages)
+
+    fake = Nested([_ok(_request("nginx")), _ok(_request("nginx"))])
+    client = TestClient(create_app(lambda method: fake))
+
+    outer = client.post(
+        "/playground/sessions", json={"description": "nginx", "turn_id": "outer-turn"}
+    )
+
+    # Eviction costs the outer turn its progress, not its result.
+    assert outer.status_code == 200
+    assert store["inner"].status_code == 200
+    assert store["outer_poll"].status_code == 404
+    assert store["inner_poll"].status_code == 200
