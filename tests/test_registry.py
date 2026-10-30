@@ -27,11 +27,11 @@ from oakestra_sla_gen.registry import (
 
 @pytest.fixture(autouse=True)
 def _clear_cache():
-    # image_exists is lru_cache'd; without this, an earlier test's monkeypatched result
+    # image_exists caches its answers; without this, an earlier test's monkeypatched result
     # for the same ref would leak into a later test.
-    image_exists.cache_clear()
+    registry.clear_cache()
     yield
-    image_exists.cache_clear()
+    registry.clear_cache()
 
 
 # --- reference parsing -------------------------------------------------------------
@@ -107,6 +107,52 @@ def test_network_failure_means_none(monkeypatch):
 def test_unexpected_status_means_none(monkeypatch):
     monkeypatch.setattr(registry, "_manifest_status", lambda *a, **k: 500)
     assert image_exists("docker.io/library/nginx") is None
+
+
+# --- caching -----------------------------------------------------------------------
+
+
+def _counting_status(monkeypatch, statuses):
+    calls = []
+
+    def fake(*_args, **_kwargs):
+        calls.append(None)
+        return statuses[len(calls) - 1]
+
+    monkeypatch.setattr(registry, "_manifest_status", fake)
+    return calls
+
+
+def test_answers_are_cached(monkeypatch):
+    calls = _counting_status(monkeypatch, [404])
+    assert image_exists("ghcr.io/some/missing-image") is False
+    assert image_exists("ghcr.io/some/missing-image") is False
+    assert len(calls) == 1
+
+
+def test_unknown_is_not_cached(monkeypatch):
+    calls = _counting_status(monkeypatch, [None, 404])
+    assert image_exists("ghcr.io/some/image") is None
+    assert image_exists("ghcr.io/some/image") is False
+    assert len(calls) == 2
+
+
+def test_cached_answers_expire(monkeypatch):
+    calls = _counting_status(monkeypatch, [404, 200])
+    now = [1000.0]
+    monkeypatch.setattr(registry.time, "monotonic", lambda: now[0])
+    assert image_exists("ghcr.io/some/image") is False
+    now[0] += registry.CACHE_TTL_SECONDS + 1
+    assert image_exists("ghcr.io/some/image") is True
+    assert len(calls) == 2
+
+
+def test_cache_drops_oldest_entry_when_full(monkeypatch):
+    monkeypatch.setattr(registry, "CACHE_MAX_ENTRIES", 2)
+    monkeypatch.setattr(registry, "_manifest_status", lambda *a, **k: 200)
+    for ref in ("ghcr.io/a/a", "ghcr.io/b/b", "ghcr.io/c/c"):
+        image_exists(ref)
+    assert list(registry._cache) == ["ghcr.io/b/b", "ghcr.io/c/c"]
 
 
 # --- www-authenticate parsing and token fetch --------------------------------------

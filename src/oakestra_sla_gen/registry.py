@@ -6,9 +6,10 @@ pulling in a registry client library, since all we need is existence, not the ma
 
 from __future__ import annotations
 
-import functools
 import json
 import re
+import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -26,6 +27,16 @@ _ACCEPT = ", ".join(
 )
 
 _WWW_AUTH_RE = re.compile(r'(\w+)="([^"]*)"')
+
+# Answers are cached, but only for a while, since the server runs for weeks: an image pushed
+# after a "missing" answer would otherwise stay missing until a restart. "Can't tell" isn't
+# cached at all, so one network blip doesn't switch the check off for that image.
+CACHE_TTL_SECONDS = 60.0 * 60.0
+CACHE_MAX_ENTRIES = 256
+# ref -> (time of the lookup, result). Insertion order is age order, which eviction relies on.
+_cache: dict[str, tuple[float, bool]] = {}
+# The generator looks images up from a thread pool.
+_cache_lock = threading.Lock()
 
 
 def _parse_ref(ref: str) -> tuple[str, str, str]:
@@ -113,11 +124,32 @@ def _manifest_status(host: str, repo: str, tag: str, timeout: float) -> int | No
     return _head(request, timeout)[0]
 
 
-@functools.lru_cache(maxsize=256)
+def clear_cache() -> None:
+    with _cache_lock:
+        _cache.clear()
+
+
 def image_exists(ref: str, timeout: float = 5.0) -> bool | None:
     """True if the image:tag resolves in its registry, False if the registry says it doesn't
     exist, None if we can't tell (network error, timeout, private/auth-required registry,
     unexpected status)."""
+    now = time.monotonic()
+    with _cache_lock:
+        cached = _cache.get(ref)
+    if cached is not None and now - cached[0] < CACHE_TTL_SECONDS:
+        return cached[1]
+
+    result = _lookup(ref, timeout)
+    if result is not None:
+        with _cache_lock:
+            _cache.pop(ref, None)
+            while len(_cache) >= CACHE_MAX_ENTRIES:
+                del _cache[next(iter(_cache))]
+            _cache[ref] = (now, result)
+    return result
+
+
+def _lookup(ref: str, timeout: float) -> bool | None:
     host, repo, tag = _parse_ref(ref)
     status = _manifest_status(host, repo, tag, timeout)
 
