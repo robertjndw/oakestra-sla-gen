@@ -269,9 +269,9 @@ def test_plausibility_question_for_excessive_memory():
 
 
 def test_image_mentioned_by_user_matches_loosely():
-    messages = [HumanMessage("run nginx:1.25 please")]
-    assert _image_mentioned_by_user("docker.io/library/nginx:1.25", messages)
-    assert not _image_mentioned_by_user("docker.io/library/redis:latest", messages)
+    user_texts = ["run nginx:1.25 please"]
+    assert _image_mentioned_by_user("docker.io/library/nginx:1.25", user_texts)
+    assert not _image_mentioned_by_user("docker.io/library/redis:latest", user_texts)
 
 
 def _single(name, code, **extra):
@@ -326,3 +326,26 @@ def test_answer_restates_all_questions_the_user_saw():
     assert "1. [cache memory]" in last_human
     assert "My answer: 1. no, 10GB" in last_human
     assert draft.questions == []
+
+
+def test_image_from_restated_assumption_is_not_mistaken_for_user_given(monkeypatch):
+    # The answer message restates the model's questions, assumptions included. The model
+    # going ahead with an image it guessed there is still its guess, so it must be retried.
+    from oakestra_sla_gen import generator
+
+    monkeypatch.setattr(generator, "image_exists", lambda ref, timeout=5.0: "madeup" not in ref)
+    guess = "docker.io/acme/madeup:latest"
+    ask = SLARequest(
+        applications=[],
+        questions=[{"topic": "api image", "question": "Which image?", "assumption": guess}],
+    )
+    fake = FakeStructuredLLM([_ok(ask), _ok(_single("api", guess)), _ok(_request("nginx"), "y")])
+    session = SLASession(structured_llm=fake, max_retries=2)
+    session.start("an api service")
+
+    draft = session.answer("sure, go ahead")
+
+    assert guess in [m for m in fake.calls[1] if isinstance(m, HumanMessage)][-1].content
+    assert len(fake.calls) == 3
+    assert draft.sla["applications"][0]["microservices"][0]["code"] != guess
+    assert session.user_texts == ["an api service", "sure, go ahead"]

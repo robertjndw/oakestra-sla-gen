@@ -94,7 +94,7 @@ def add_playground(
             draft = run()
         except SLAGenerationError as error:
             # The session itself is still usable - `SLASession._turn` only commits to
-            # `messages`/`draft` on success - so the caller can answer and try again.
+            # `messages`/`user_texts`/`draft` on success - so the caller can answer and try again.
             failure = GenerationFailure(
                 detail="could not produce a valid SLA",
                 errors=error.errors,

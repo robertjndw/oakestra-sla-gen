@@ -171,20 +171,15 @@ def _normalize_image(ref: str) -> str:
     return ref
 
 
-def _image_mentioned_by_user(image: str, messages: list[BaseMessage]) -> bool:
+def _image_mentioned_by_user(image: str, user_texts: list[str]) -> bool:
     """Loose match so e.g. "nginx:1.25" typed by the user matches the model's
     "docker.io/library/nginx:1.25": compare both the raw and the Docker-Hub-stripped form
-    against every human message as a substring."""
+    against everything the user wrote as a substring."""
     normalized = _normalize_image(image)
-    for message in messages:
-        if not isinstance(message, HumanMessage) or not isinstance(message.content, str):
-            continue
-        if image in message.content or normalized in message.content:
-            return True
-    return False
+    return any(image in text or normalized in text for text in user_texts)
 
 
-def _check_images(sla: dict, messages: list[BaseMessage]) -> tuple[list[str], list[Clarification]]:
+def _check_images(sla: dict, user_texts: list[str]) -> tuple[list[str], list[Clarification]]:
     """Look up every microservice's image. A missing image the model picked itself is a
     validation error (retry with a better one); a missing image the user typed is left as-is
     but flagged as a question, since it might just be private."""
@@ -201,7 +196,7 @@ def _check_images(sla: dict, messages: list[BaseMessage]) -> tuple[list[str], li
         code = microservice.get("code", "")
         if exists[code] is not False:
             continue
-        if _image_mentioned_by_user(code, messages):
+        if _image_mentioned_by_user(code, user_texts):
             questions.append(
                 Clarification(
                     topic=f"{microservice.get('microservice_name')} image",
@@ -264,10 +259,14 @@ class SLASession:
         self.check_images = check_images
         self.on_attempt = on_attempt
         self.messages: list[BaseMessage] = [SystemMessage(SYSTEM_PROMPT)]
+        # What the user actually typed, apart from `messages`: an answer's human message also
+        # restates the open questions, and with them the model's own assumptions. An image the
+        # model guessed there must not count as user-provided on the next turn.
+        self.user_texts: list[str] = []
         self.draft: Draft | None = None
 
     def start(self, description: str) -> Draft:
-        return self._turn(description)
+        return self._turn(description, description)
 
     def answer(self, text: str) -> Draft:
         # The user answers the numbered list they were shown, which includes questions the
@@ -277,17 +276,21 @@ class SLASession:
             numbered = "\n".join(
                 f"{i}. {format_question(q)}" for i, q in enumerate(self.draft.questions, 1)
             )
-            text = f"Open questions I was shown:\n{numbered}\n\nMy answer: {text}"
-        return self._turn(text)
+            return self._turn(f"Open questions I was shown:\n{numbered}\n\nMy answer: {text}", text)
+        return self._turn(text, text)
 
-    def _turn(self, text: str) -> Draft:
+    def _turn(self, text: str, user_text: str) -> Draft:
         base = [*self.messages, HumanMessage(text)]
-        draft, ai_message = self._run_retry_loop(base)
+        user_texts = [*self.user_texts, user_text]
+        draft, ai_message = self._run_retry_loop(base, user_texts)
         self.messages = [*base, ai_message] if ai_message is not None else base
+        self.user_texts = user_texts
         self.draft = draft
         return draft
 
-    def _run_retry_loop(self, messages: list[BaseMessage]) -> tuple[Draft, AIMessage | None]:
+    def _run_retry_loop(
+        self, messages: list[BaseMessage], user_texts: list[str]
+    ) -> tuple[Draft, AIMessage | None]:
         """Run the validate/retry loop for one turn of `messages` (system + history + the latest
         human message). Returns the resulting draft and the raw AI message that produced it, so the
         caller can decide what belongs in the persistent conversation."""
@@ -317,9 +320,9 @@ class SLASession:
                 errors = validate_sla(candidate)
                 questions = list(parsed.questions)
                 if not errors and self.check_images:
-                    # `messages`, not `turn_messages`: a correction message quoting a missing
-                    # image must not make that image look user-provided on the next attempt.
-                    image_errors, image_questions = _check_images(candidate, messages)
+                    # Correction messages quote the missing image, which is one more reason this
+                    # goes by `user_texts` rather than the messages sent to the model.
+                    image_errors, image_questions = _check_images(candidate, user_texts)
                     errors = image_errors
                     questions += image_questions
                 if not errors:
