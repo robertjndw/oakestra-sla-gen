@@ -60,6 +60,8 @@ Uncertainty:
   intent: image choice when it isn't obvious, credentials, ports/exposure, resources for
   heavy workloads, how services connect to each other. Don't ask about anything the user
   already specified. Ask at most 5 questions, most important first.
+- Set field to what a question is about: "<microservice_name>.<key>" with an SLA key (e.g.
+  "redis.memory", "api.environment"), just "<microservice_name>" for a whole service, or null.
 - If the description is too vague to draft anything (e.g. "deploy my app"), return an empty
   applications list and only questions.
 - When the user answers, update the SLA to match and drop the questions that are now
@@ -101,7 +103,7 @@ SLA applications: [{
 }]
 questions: [{
   "topic": "flask memory", "question": "How much memory does the api need under load?",
-  "assumption": "512MB (default for a small app server)"
+  "assumption": "512MB (default for a small app server)", "field": "flask.memory"
 }]
 
 Example 3 (too vague to draft anything):

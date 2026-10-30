@@ -119,3 +119,24 @@ def test_rr_ip_survives_into_sla():
     sla = request.to_oakestra_sla()
     assert sla["applications"][0]["microservices"][0]["addresses"] == {"rr_ip": "10.30.0.1"}
     assert validate_sla(sla) == []
+
+
+def test_clarification_field_is_optional():
+    assert Clarification(topic="nginx memory", question="enough?").field is None
+    question = Clarification(topic="nginx memory", question="enough?", field=" nginx.memory ")
+    assert question.field == "nginx.memory"
+
+
+@pytest.mark.parametrize("field", [42, ["nginx", "memory"], {"service": "nginx"}, "", "   "])
+def test_unusable_clarification_field_is_dropped_not_rejected(field):
+    # The model writing something odd here must not cost a retry of an otherwise fine draft.
+    request = SLARequest.model_validate(
+        {"questions": [{"topic": "t", "question": "q?", "assumption": None, "field": field}]}
+    )
+    assert request.questions[0].field is None
+
+
+def test_clarification_keeps_unresolvable_field_as_given():
+    # Whether a reference resolves depends on the draft, so that's for the UI to decide.
+    question = Clarification(topic="t", question="q?", field="nosuchservice.whatever")
+    assert question.field == "nosuchservice.whatever"

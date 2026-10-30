@@ -10,6 +10,7 @@ from oakestra_sla_gen.generator import (
     SLASession,
     _image_mentioned_by_user,
     build_llm,
+    format_question,
     generate_sla,
 )
 from oakestra_sla_gen.models import Clarification, SLARequest
@@ -229,6 +230,7 @@ def test_user_given_missing_image_becomes_question_not_retry(monkeypatch):
     assert draft.sla is not None
     assert len(fake.calls) == 1
     assert any("privateapp" in q.question for q in draft.questions)
+    assert [q.field for q in draft.questions] == ["app.code"]
 
 
 def test_none_from_image_exists_is_ignored(monkeypatch):
@@ -267,6 +269,7 @@ def test_plausibility_question_for_excessive_memory():
 
     assert draft.sla is not None
     assert any("memory" in q.topic for q in draft.questions)
+    assert [q.field for q in draft.questions] == ["cache.memory"]
 
 
 def test_image_mentioned_by_user_matches_loosely():
@@ -325,6 +328,7 @@ def test_answer_restates_all_questions_the_user_saw():
 
     last_human = [m for m in fake.calls[1] if isinstance(m, HumanMessage)][-1].content
     assert "1. [cache memory]" in last_human
+    assert "(field: cache.memory)" in last_human
     assert "My answer: 1. no, 10GB" in last_human
     assert draft.questions == []
 
@@ -357,3 +361,13 @@ def test_build_llm_bounds_each_call_without_client_retries():
 
     assert llm.request_timeout == 42
     assert llm.max_retries == 0
+
+
+def test_format_question_mentions_field_only_for_the_model():
+    question = Clarification(topic="api port", question="Which port?", assumption="80:80")
+    assert format_question(question, with_field=True) == "[api port] Which port? (assuming: 80:80)"
+    question.field = "api.port"
+    assert format_question(question) == "[api port] Which port? (assuming: 80:80)"
+    assert format_question(question, with_field=True).endswith(
+        "(assuming: 80:80) (field: api.port)"
+    )

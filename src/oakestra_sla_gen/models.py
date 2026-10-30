@@ -14,7 +14,7 @@ of the two so the output satisfies both.
 import re
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 # Reject unrecognized fields rather than silently drop them: since the LLM's
 # output is constrained to this schema, an unknown field is a sign it used the
@@ -145,6 +145,22 @@ class Clarification(BaseModel):
         default=None,
         description="What the draft currently assumes for this, or null if nothing could be.",
     )
+    field: str | None = Field(
+        default=None,
+        description=(
+            "The SLA field this is about: '<microservice_name>.<key>', e.g. 'redis.memory', "
+            "or '<microservice_name>' for a whole service. Null if it isn't about one service."
+        ),
+    )
+
+    @field_validator("field", mode="before")
+    @classmethod
+    def _drop_unusable_field(cls, value: object) -> str | None:
+        # Only a hint for the UI, which ignores references it can't resolve anyway. A malformed
+        # one isn't worth failing the whole draft and spending a retry on.
+        if not isinstance(value, str) or not value.strip():
+            return None
+        return value.strip()
 
 
 class SLARequest(BaseModel):
