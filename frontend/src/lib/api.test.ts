@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { answerSession, startSession, validate } from "./api";
+import { answerSession, fetchTurnProgress, newTurnId, startSession, validate } from "./api";
 import { DEFAULT_SETTINGS } from "./constants";
 
 afterEach(() => vi.unstubAllGlobals());
@@ -66,6 +66,37 @@ describe("api", () => {
     vi.stubGlobal("fetch", fetchMock);
     await startSession({ ...DEFAULT_SETTINGS, customerId: " acme " }, "desc");
     expect(JSON.parse(fetchMock.mock.calls[0][1].body).customer_id).toBe("acme");
+  });
+
+  it("sends a turn id only when one is given", async () => {
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(new Response("{}", { status: 200 })));
+    vi.stubGlobal("fetch", fetchMock);
+    await startSession(DEFAULT_SETTINGS, "desc", null, "turn-1234");
+    await answerSession("s", "x", "turn-5678");
+    await answerSession("s", "x");
+    const bodies = fetchMock.mock.calls.map(([, init]) => JSON.parse(init.body));
+    expect(bodies[0].turn_id).toBe("turn-1234");
+    expect(bodies[1]).toEqual({ text: "x", turn_id: "turn-5678" });
+    expect(bodies[2]).toEqual({ text: "x" });
+  });
+
+  it("polls a turn's progress with a GET", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ attempts: [{ attempt: 1, errors: ["e"] }] }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const res = await fetchTurnProgress("t/1");
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/playground/turns/t%2F1");
+    expect(fetchMock.mock.calls[0][1].method).toBe("GET");
+    expect(res).toEqual({ status: 200, body: { attempts: [{ attempt: 1, errors: ["e"] }] } });
+  });
+
+  it("makes turn ids the server accepts, without crypto.randomUUID", () => {
+    // randomUUID is missing outside secure contexts, e.g. the addon's plain http.
+    vi.stubGlobal("crypto", { getRandomValues: globalThis.crypto.getRandomValues.bind(globalThis.crypto) });
+    const a = newTurnId();
+    expect(a).toMatch(/^[0-9a-f]{32}$/);
+    expect(newTurnId()).not.toBe(a);
   });
 
   it("encodes the session id", async () => {

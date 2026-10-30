@@ -1,9 +1,9 @@
 import { useCallback, useReducer, useRef } from "react";
-import { answerSession, deleteSession, startSession } from "@/lib/api";
+import { answerSession, deleteSession, fetchTurnProgress, newTurnId, startSession } from "@/lib/api";
 import type { ApiResult, SessionResult } from "@/lib/api";
 import type { QuestionAnswer } from "@/lib/answers";
 import { DEFAULT_SETTINGS } from "@/lib/constants";
-import { describeChanges, diffSlas, firstDraftLine } from "@/lib/sla";
+import { describeChanges, diffSlas, firstDraftLine, slaText } from "@/lib/sla";
 import type { Attempt, Clarification, InputFile, Settings, Sla } from "@/lib/types";
 
 /** What the user did with a question list when it was closed. */
@@ -15,7 +15,16 @@ export interface FrozenAnswers {
 
 export type Round =
   | { id: number; kind: "user"; text: string; fileName?: string }
-  | { id: number; kind: "pending"; first: boolean; startedAt: number }
+  | {
+      id: number;
+      kind: "pending";
+      first: boolean;
+      startedAt: number;
+      /** Attempts the server has finished so far, from polling while the request is open. */
+      attempts: Attempt[];
+      /** The turn's max_retries, fixed at turn-start: the first turn's settings aren't locked yet. */
+      maxAttempts: number;
+    }
   | {
       id: number;
       kind: "draft";
@@ -123,9 +132,8 @@ export type SessionAction =
   | { type: "set-editor-text"; text: string }
   | { type: "reset-to-model" }
   | { type: "set-settings"; settings: Settings }
-  | { type: "dismiss-pending-draft" };
-
-const stringify = (sla: Sla) => JSON.stringify(sla, null, 2);
+  | { type: "dismiss-pending-draft" }
+  | { type: "turn-progress"; token: number; attempts: Attempt[] };
 
 export function initialState(): SessionState {
   return {
@@ -247,7 +255,7 @@ function applyResponse(
     const draft = state.draftCount + 1;
     let changes = state.modelSla ? describeChanges(diffSlas(state.modelSla, sla)) : [firstDraftLine(sla)];
     if (!changes.length) changes = ["No changes to the SLA"];
-    const text = stringify(sla);
+    const text = slaText(sla);
     // Hand edits win until the user says otherwise; the baseline moves either way so
     // "Reset to model draft" goes to the newest draft.
     const keepEdits = base.editedSla.trim() !== "" && isEdited(base);
@@ -353,7 +361,17 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
       if (action.userText) {
         rounds = [...rounds, { id: id++, kind: "user", text: action.userText, fileName: action.fileName }];
       }
-      rounds = [...rounds, { id: id++, kind: "pending", first: action.first, startedAt: action.now }];
+      rounds = [
+        ...rounds,
+        {
+          id: id++,
+          kind: "pending",
+          first: action.first,
+          startedAt: action.now,
+          attempts: [],
+          maxAttempts: state.settings.maxRetries,
+        },
+      ];
       return {
         ...state,
         rounds,
@@ -397,7 +415,7 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
       // The baseline stays on the last draft that passed, so "Reset to model draft" goes back to it.
       return {
         ...state,
-        editedSla: stringify(action.sla),
+        editedSla: slaText(action.sla),
         pendingDraft: null,
         codeViewRequest: state.codeViewRequest + 1,
       };
@@ -410,6 +428,37 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
       return state.sessionId ? state : { ...state, settings: action.settings };
     case "dismiss-pending-draft":
       return { ...state, pendingDraft: null };
+    case "turn-progress": {
+      // A poll that comes back after its turn's response (or after New session) is stale.
+      if (action.token !== state.requestToken || !state.turnRunning) return state;
+      const idx = state.rounds.findIndex((r) => r.kind === "pending");
+      const r = state.rounds[idx];
+      // Most polls repeat what the last one said. Returning the same state skips the re-render
+      // and the session snapshot that every state change writes.
+      if (r?.kind !== "pending" || action.attempts.length <= r.attempts.length) return state;
+      return { ...state, rounds: state.rounds.map((x, i) => (i === idx ? { ...r, attempts: action.attempts } : x)) };
+    }
+  }
+}
+
+export const TURN_POLL_INTERVAL_MS = 1000;
+
+/**
+ * Polls a turn's progress until `stopped()` says its request has settled. A failed poll is not a
+ * reason to stop: the server answers 404 until the POST has reached it, and the POST, not the
+ * poll, decides how the turn ends. At most one poll is in flight at a time.
+ */
+export async function pollTurnProgress(
+  turnId: string,
+  stopped: () => boolean,
+  onAttempts: (attempts: Attempt[]) => void,
+): Promise<void> {
+  for (;;) {
+    await new Promise((resolve) => setTimeout(resolve, TURN_POLL_INTERVAL_MS));
+    if (stopped()) return;
+    const res = await fetchTurnProgress(turnId);
+    if (stopped()) return;
+    if (res.status === 200 && Array.isArray(res.body.attempts)) onAttempts(res.body.attempts);
   }
 }
 
@@ -465,9 +514,18 @@ export function useSessionController(init: () => SessionState = initialState): S
         freeze: opts.freeze,
         now: Date.now(),
       });
+      const turnId = newTurnId();
+      let settled = false;
+      // tokenRef also stops it when New session or a history entry replaces the conversation.
+      void pollTurnProgress(
+        turnId,
+        () => settled || tokenRef.current !== token,
+        (attempts) => dispatch({ type: "turn-progress", token, attempts }),
+      );
       const res = first
-        ? await startSession(settings, message, opts.file)
-        : await answerSession(sessionId, message);
+        ? await startSession(settings, message, opts.file, turnId)
+        : await answerSession(sessionId, message, turnId);
+      settled = true;
       dispatch({ type: "response", token, res, first, message, file: opts.file });
     },
     [turnRunning, sessionId, settings],

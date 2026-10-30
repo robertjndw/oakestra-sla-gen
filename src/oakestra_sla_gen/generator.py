@@ -169,10 +169,15 @@ def build_structured_llm(llm: ChatOpenAI, method: str = DEFAULT_METHOD):
     return llm.with_structured_output(SLARequest, method=method, include_raw=True)
 
 
-def format_question(question: Clarification) -> str:
+def format_question(question: Clarification, *, with_field: bool = False) -> str:
     text = f"[{question.topic}] {question.question}"
     if question.assumption:
         text += f" (assuming: {question.assumption})"
+    # SLASession.answer restates the questions with this, so the model sees which field each one
+    # was about and can keep the reference on those that stay open. People reading the CLI's
+    # question list have the topic for that already.
+    if with_field and question.field:
+        text += f" (field: {question.field})"
     return text
 
 
@@ -209,14 +214,16 @@ def _check_images(sla: dict, user_texts: list[str]) -> tuple[list[str], list[Cla
         if exists[code] is not False:
             continue
         if _image_mentioned_by_user(code, user_texts):
+            name = microservice.get("microservice_name")
             questions.append(
                 Clarification(
-                    topic=f"{microservice.get('microservice_name')} image",
+                    topic=f"{name} image",
                     question=(
                         f"could not find image {code} in its registry - "
                         "is the name right, or is it private?"
                     ),
                     assumption=f"keep {code} as given",
+                    field=f"{name}.code" if name else None,
                 )
             )
         else:
@@ -242,6 +249,7 @@ def _plausibility_questions(sla: dict) -> list[Clarification]:
                             "is that really what you want?"
                         ),
                         assumption=f"keeps {value} as requested",
+                        field=f"{name}.{resource}" if name else None,
                     )
                 )
     return questions
@@ -286,7 +294,8 @@ class SLASession:
         # those, so restate the list or "2. yes" is meaningless to it.
         if self.draft and self.draft.questions:
             numbered = "\n".join(
-                f"{i}. {format_question(q)}" for i, q in enumerate(self.draft.questions, 1)
+                f"{i}. {format_question(q, with_field=True)}"
+                for i, q in enumerate(self.draft.questions, 1)
             )
             return self._turn(f"Open questions I was shown:\n{numbered}\n\nMy answer: {text}", text)
         return self._turn(text, text)

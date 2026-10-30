@@ -41,9 +41,16 @@ export function downloadText(text: string, filename: string) {
 }
 
 
+/** Copies `text` and says how it went, e.g. what = "the SLA JSON". */
+export async function copyWithToast(text: string, what: string): Promise<boolean> {
+  const ok = await copyText(text);
+  if (ok) toast.success(`Copied ${what}`);
+  else toast.error(`Could not copy ${what}`);
+  return ok;
+}
+
 export async function copySla(text: string) {
-  if (await copyText(text)) toast.success("Copied the SLA JSON");
-  else toast.error("Could not copy the SLA JSON");
+  await copyWithToast(text, "the SLA JSON");
 }
 
 export function downloadSla(text: string) {

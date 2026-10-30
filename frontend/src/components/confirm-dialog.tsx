@@ -18,6 +18,7 @@ export function ConfirmDialog({
   actionLabel,
   cancelLabel = "Cancel",
   onConfirm,
+  onCloseAutoFocus,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -26,10 +27,11 @@ export function ConfirmDialog({
   actionLabel: string;
   cancelLabel?: string;
   onConfirm: () => void;
+  onCloseAutoFocus?: (event: Event) => void;
 }) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
+      <AlertDialogContent onCloseAutoFocus={onCloseAutoFocus}>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>

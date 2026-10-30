@@ -245,6 +245,11 @@ at 10. Error responses:
   `compose` isn't a usable compose file or `sla` isn't usable JSON with at least one application
 - `502` if the LLM server failed
 
+Each question is `{"topic", "question", "assumption", "field"}`. `assumption` is what the
+draft assumes, or `null`. `field` optionally names what the question is about, as
+`<microservice_name>.<key>` with an SLA key (e.g. `redis.memory`) or just `<microservice_name>`
+for a whole service. It's a hint from the model, so it can be `null` or not match the draft.
+
 `/generate` is single-shot: it doesn't expose the interactive session, so open questions come
 back once with no follow-up turn. Use the [playground](#playground) endpoints for a
 conversation.
@@ -265,16 +270,23 @@ mode. The quickest way to run it is `docker compose up --build` and then
 
 - **Conversation (left pane)** - describe your app, pick one of the examples, or upload or
   drop a compose file or an existing SLA with an optional note. Then keep changing the draft
-  through the chat. Each round shows whether the draft passed validation, what changed, and
-  the model's open questions. Keep each assumption or answer it, then update or accept the
-  draft. If no valid SLA comes out of a round, you can load the last attempt into the code
-  view and fix it by hand.
+  through the chat. While the model works, each attempt shows up as soon as it's validated,
+  with the first problem if it was rejected. Each round shows whether the draft passed
+  validation, what changed, and the model's open questions. Keep each assumption or answer it,
+  then update or accept the draft. Hovering or focusing a question highlights the field it's
+  about in the visual view, and **Show** scrolls to it. If no valid SLA comes out of a round,
+  you can load the last attempt into the code view and fix it by hand.
 - **Visual view (right pane)** - a map of the services, what's reachable from outside and
   which service references another's service IP, followed by a section per service with
-  changed fields and validation problems marked.
+  changed fields and validation problems marked. Values that look like secrets (passwords,
+  tokens, keys) are hidden until you reveal them, and values can be copied from each row.
 - **Code view (right pane)** - the editable SLA JSON, re-validated as you type. Clicking a
-  problem jumps to its line. If the model sends a new draft while you have unsaved edits, you
-  choose which one to keep.
+  problem jumps to its line. **Show changes** diffs it against the previous draft, or against
+  the model's latest draft once you've edited it by hand. If the model sends a new draft while
+  you have unsaved edits, you choose which one to keep.
+- **Earlier drafts** - pick one from the draft menu in the right pane's header, or click its
+  heading in the conversation, to see it read-only in both views. **Restore this draft** makes
+  it your working copy. The model keeps refining from its latest draft either way.
 - **Settings (top bar)** - attempts per round, the customer ID and whether to check that
   images exist. They lock once a session starts; **New session** unlocks them. The model and
   output method are server settings, see [HTTP API](#http-api).
@@ -283,8 +295,8 @@ mode. The quickest way to run it is `docker compose up --build` and then
   because server sessions expire after an hour. Entries can be copied, downloaded or deleted.
   Nothing leaves the browser, but any secrets in the SLAs are stored there until you delete them.
 
-The settings and the current conversation also survive a page reload. The UI follows the
-system's light or dark mode.
+The settings, the current conversation and the width of the two panes also survive a page
+reload. The UI follows the system's light or dark mode.
 
 ![The code view showing the editable SLA JSON for the same draft](docs/images/playground-code.png)
 
@@ -296,10 +308,15 @@ system's light or dark mode.
 
 | Endpoint | Description |
 |---|---|
-| `POST /playground/sessions` | Start a session. Same fields as `POST /generate`, plus `check_images`. Returns `{session_id, sla, questions, attempts}`. |
-| `POST /playground/sessions/{id}/answer` | Continue a session with `{text}`. Returns the same shape. `409` while a turn is still running. |
+| `POST /playground/sessions` | Start a session. Same fields as `POST /generate`, plus `check_images` and `turn_id`. Returns `{session_id, sla, questions, attempts}`. |
+| `POST /playground/sessions/{id}/answer` | Continue a session with `{text, turn_id}`. Returns the same shape. `409` while a turn is still running. |
+| `GET /playground/turns/{turn_id}` | Progress of a running turn: `{attempts}` so far. `404` before the turn's request arrives and once it has finished. |
 | `DELETE /playground/sessions/{id}` | Drop a session. |
 | `GET /playground/info` | Returns `{model}`, shown in the UI header. |
+
+`turn_id` is optional. It's a random id the client picks, 8 to 64 letters, digits, `-` or `_`,
+and lets the UI poll the attempts of a turn while its request is still open. Anyone who knows
+it can read the turn's errors, so don't reuse a guessable one.
 
 Sessions live only in the server process's memory. They don't survive a restart and aren't
 shared across worker processes. At most 32 are kept, each for up to an hour of inactivity,

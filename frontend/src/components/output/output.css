@@ -12,8 +12,8 @@
    from syntax-plugin.ts have to win over whatever it puts inside them. */
 .cm-editor .syn-key,
 .cm-editor .syn-key * {
-  color: var(--primary) !important;
-  font-weight: 600;
+  color: var(--foreground) !important;
+  font-weight: 500;
 }
 .cm-editor .syn-str,
 .cm-editor .syn-str * {

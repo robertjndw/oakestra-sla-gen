@@ -47,6 +47,9 @@ export interface ServiceLink {
   label: string;
 }
 
+/** The editor text of an SLA. Drafts are compared as text, so everything that writes one goes through here. */
+export const slaText = (sla: Sla): string => JSON.stringify(sla, null, 2);
+
 export const serviceName = (s: ServiceEntry): string => s.ms.microservice_name || "unnamed";
 
 export function shortImage(ref: unknown): string {

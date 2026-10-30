@@ -1,4 +1,4 @@
-import { ChevronDownIcon, CircleHelpIcon, LockIcon } from "lucide-react";
+import { ChevronDownIcon, CircleHelpIcon, LockIcon, Settings2Icon } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -54,9 +54,13 @@ export function SettingsPopover() {
     <Popover>
       <PopoverTrigger asChild>
         <Button variant="ghost" size="sm" className="gap-1.5">
-          {settingsLocked && <LockIcon className="size-3.5 text-muted-foreground" aria-label="Locked" />}
+          {settingsLocked ? (
+            <LockIcon className="size-3.5 text-muted-foreground" aria-label="Locked" />
+          ) : (
+            <Settings2Icon className="size-3.5 text-muted-foreground" aria-hidden />
+          )}
           Settings
-          <span className="hidden text-muted-foreground sm:inline">
+          <span className="hidden font-normal text-muted-foreground sm:inline">
             {plural(settings.maxRetries, "attempt")}
           </span>
           <ChevronDownIcon className="size-3.5 text-muted-foreground" />

@@ -59,7 +59,10 @@ export function ConversationPane() {
   };
 
   return (
-    <section aria-label="Conversation" className="flex min-h-0 min-w-0 flex-col border-b lg:border-r lg:border-b-0">
+    <section aria-label="Conversation" className="flex min-h-0 min-w-0 flex-col border-b lg:border-b-0">
+      <div className="flex min-h-11 shrink-0 items-center border-b bg-card px-4">
+        <span className="text-sm font-semibold">Conversation</span>
+      </div>
       <Thread
         rounds={state.rounds}
         activeFormId={activeFormId}
@@ -70,7 +73,7 @@ export function ConversationPane() {
         historySeed={state.sessionId ? null : state.historySeed}
         onPickExample={pickExample}
       />
-      <div className="shrink-0 border-t bg-background p-3">
+      <div className="shrink-0 border-t bg-card p-3">
         {state.accepted ? (
           <AcceptedBar draft={state.draftCount} sla={state.editedSla} onKeepRefining={keepRefining} />
         ) : (

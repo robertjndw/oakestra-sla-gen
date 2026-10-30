@@ -40,6 +40,16 @@ describe("ServicePreview", () => {
     expect(screen.getByText("1 variable")).toBeInTheDocument();
   });
 
+  it("counts environment variables without showing their values", () => {
+    // The hover card opens on mere pointer movement, so it must never put a password on screen.
+    const [web] = services({
+      applications: [{ microservices: [{ microservice_name: "web", environment: ["DB_PASSWORD=hunter2"] }] }],
+    });
+    render(<ServicePreview service={web} mark={clean} links={[]} />);
+    expect(screen.getByText("1 variable")).toBeInTheDocument();
+    expect(screen.queryByText(/hunter2/)).toBeNull();
+  });
+
   it("lists who calls a service", () => {
     render(<ServicePreview service={list[1]} mark={clean} links={links} />);
     expect(screen.getByText("Called by")).toBeInTheDocument();
