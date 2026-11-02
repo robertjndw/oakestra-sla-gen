@@ -14,9 +14,16 @@ const ApplicationGeneratorPage = lazy(() => import("./pages/ApplicationGenerator
 export default defineAddon({
   id: ADDON_ID,
   label: "SLA generator",
+  // The playground is a two-pane editor that needs the width more than a readable line length,
+  // so its pages leave the shell's centered column.
   routes: [
-    { index: true, Component: PlaygroundPage },
-    { path: "applications/:applicationId", crumb: "Generate services", Component: ApplicationGeneratorPage },
+    { index: true, fullWidth: true, Component: PlaygroundPage },
+    {
+      path: "applications/:applicationId",
+      crumb: "Generate services",
+      fullWidth: true,
+      Component: ApplicationGeneratorPage,
+    },
   ],
   contributions: {
     "nav.items": [{ id: "main", label: "SLA generator", path: "", icon: WandSparklesIcon }],
