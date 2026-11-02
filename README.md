@@ -523,13 +523,17 @@ Oakestra/
 └── oakestra-sla-gen/
 ```
 
-`frontend/addon/compose.dashboard.yml` adds the addon UI and the sla-gen API to the dashboard's
-`docker-compose.dev.yml`. That stack runs the real dashboard image against a mock system-manager
-and a mock addons manager. From the dashboard checkout:
+The dashboard's `docker-compose.dev.yml` runs the real dashboard image against a mock
+system-manager and a mock addons manager. The mock doesn't start addon containers, so
+`frontend/addon/compose.dashboard.yml` starts the addon UI and the sla-gen API on the
+dashboard's network. Start the dashboard first:
 
 ```sh
-docker compose -f docker-compose.dev.yml \
-  -f ../oakestra-sla-gen/frontend/addon/compose.dashboard.yml up --build -d
+# From the dashboard checkout
+docker compose -f docker-compose.dev.yml up --build -d
+
+# From this repository
+docker compose -f frontend/addon/compose.dashboard.yml up --build -d
 
 # Tell the mock addons manager the addon is installed and enabled
 curl -X PUT http://localhost:11101/__test/addons/sla-generator \
@@ -539,9 +543,14 @@ curl -X PUT http://localhost:11101/__test/addons/sla-generator \
 
 Open <http://localhost:8080>, log in as `Admin` / `Admin` and pick **SLA generator** in the
 sidebar. The API uses the same LLM settings as [Docker](#docker) (`OPENAI_BASE_URL` and the
-rest, LM Studio on the host by default). Port 8080 is the same one this repository's own
-`compose.yaml` uses, so stop that first. `docker compose ... down` with the same files stops
-everything again.
+rest, LM Studio on the host by default). If the dashboard isn't checked out next to this
+repository, set `DASHBOARD_DIR` to its path, relative to `frontend/addon/`. Port 8080 is the
+same one this repository's own `compose.yaml` uses, so stop that first.
+
+Stop the addon before the dashboard, otherwise the dashboard's `down` can't remove its network.
+
+If the dashboard shows `Failed to get manifest` with `"<html> <h"... is not valid JSON`, the
+addon containers aren't running and nginx returned a 502 page instead.
 
 #### Developing the addon
 

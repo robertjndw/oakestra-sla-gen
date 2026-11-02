@@ -1,14 +1,18 @@
-# Runs the playground as a UI addon inside the dashboard's dev stack (mock addons manager and
-# mock system-manager, no real Oakestra). Paths in an override file resolve against the first
-# -f file's directory, which is why they start from the dashboard checkout, not from here.
+# Runs the playground as a UI addon next to the dashboard's dev stack (mock addons manager and
+# mock system-manager, no real Oakestra). It joins the dashboard's network, so start the
+# dashboard first.
 #
-# Needs oakestra-dashboard-v2 and oakestra-sla-gen checked out side by side. From the dashboard
-# checkout (the commit in DASHBOARD_REF is known to work):
+# Needs oakestra-dashboard-v2 and oakestra-sla-gen checked out side by side (or DASHBOARD_DIR
+# pointing at the dashboard checkout, relative to this file). From the dashboard checkout, at the
+# commit in DASHBOARD_REF:
 #
-#   docker compose -f docker-compose.dev.yml \
-#     -f ../oakestra-sla-gen/frontend/addon/compose.dashboard.yml up --build -d
+#   docker compose -f docker-compose.dev.yml up --build -d
 #
-# Then register and enable the addon at the mock addons manager:
+# Then from this repository's root:
+#
+#   docker compose -f frontend/addon/compose.dashboard.yml up --build -d
+#
+# Register and enable the addon at the mock addons manager:
 #
 #   curl -X PUT http://localhost:11101/__test/addons/sla-generator \
 #     -H 'content-type: application/json' \
@@ -17,21 +21,27 @@
 # Open http://localhost:8080 and log in as Admin / Admin. The LLM is read from OPENAI_BASE_URL
 # (default: LM Studio on the host); set OPENAI_BASE_URL, OPENAI_API_KEY, OAKESTRA_SLA_MODEL and
 # OAKESTRA_SLA_METHOD in the environment to change it.
+#
+# Relative paths below resolve against this file's directory.
+name: oakestra-sla-gen-addon
+
 services:
-  # The dashboard's nginx proxies /addon-assets/sla-generator/ to this name.
+  # The dashboard's nginx proxies /addon-assets/sla-generator/ to this name. Compose adds the
+  # service name as a DNS alias on the network, so the dashboard can resolve it from its own
+  # project.
   addonui-sla-generator:
     build:
-      context: ../oakestra-sla-gen/frontend
+      context: ..
       dockerfile: addon/Dockerfile
       additional_contexts:
-        dashboard: .
+        dashboard: ${DASHBOARD_DIR:-../../../oakestra-dashboard-v2}
     environment:
       API_UPSTREAM: http://sla-gen:8000
     depends_on:
       - sla-gen
 
   sla-gen:
-    build: ../oakestra-sla-gen
+    build: ../..
     environment:
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-http://host.docker.internal:1234/v1}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-lm-studio}
@@ -40,3 +50,9 @@ services:
     # Docker Desktop resolves host.docker.internal on its own; on Linux it needs this mapping.
     extra_hosts:
       - "host.docker.internal:host-gateway"
+
+networks:
+  # Created by the dashboard's docker-compose.dev.yml (project name oakestra-dashboard-dev).
+  default:
+    name: oakestra-dashboard-dev_default
+    external: true
