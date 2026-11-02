@@ -373,24 +373,27 @@ port 8080) and `sla_gen_ui` (the [dashboard UI addon](#dashboard-ui-addon), no h
 the `ui` block that points the dashboard at `sla_gen_ui`.
 
 > [!IMPORTANT]
-> Today's Oakestra marketplace doesn't know the `ui` block yet and rejects the entry with HTTP
-> 422 (`ui: Unknown field.`). Until it does, remove the `ui` block and the `sla_gen_ui` service
-> from your copy of `oakestra-addon.json` before registering it. The API and the standalone
-> playground work without them.
+> Support for UI addons in the addons engine is new. A marketplace without it doesn't know the
+> `ui` block and rejects the entry with HTTP 422 (`ui: Unknown field.`). In that case, remove
+> the `ui` block and the `sla_gen_ui` service from your copy of `oakestra-addon.json` before
+> registering it. The API and the standalone playground work without them.
 
 1. **Check `environment` in `oakestra-addon.json`.** The addons engine starts the container
-   with plain `docker run` options and can't add `extra_hosts`, so `host.docker.internal`
-   doesn't resolve. The default, `172.17.0.1`, is the Docker bridge gateway on a Linux host,
-   which reaches an LLM server on the root orchestrator host as long as it listens on all
-   interfaces. For an LLM elsewhere, use its real address.
+   with plain `docker run` options and can't add `extra_hosts`, so on Linux
+   `host.docker.internal` doesn't resolve. The default, `172.17.0.1`, is the Docker bridge
+   gateway on a Linux host, which reaches an LLM server on the root orchestrator host as long as
+   it listens on all interfaces. Docker Desktop and OrbStack resolve `host.docker.internal` on
+   their own but don't route `172.17.0.1` to the host, so there use
+   `http://host.docker.internal:1234/v1`. For an LLM elsewhere, use its real address.
 
    The frontend's `API_UPSTREAM` must reach the API container. The addons engine names
    containers `root_<service_name>` and puts them on the `oakestra` network, so the default is
    `http://root_sla_gen:8000`. If your setup names them differently, use
    `http://172.17.0.1:8000` instead, which works because the API publishes host port 8000.
-2. **Register it with the marketplace.** It moves from `under_review` to `approved` once the
-   image is pulled, so the GHCR package has to be public (or the root orchestrator host has
-   to be logged in to GHCR).
+2. **Register it with the marketplace.** It moves from `under_review` to `approved` once all
+   three images are pulled, so the GHCR packages have to be public (or the root orchestrator
+   host has to be logged in to GHCR). One image that can't be pulled keeps the whole entry from
+   being approved.
 
    ```sh
    curl -X POST http://<root-orchestrator>:11102/api/v1/marketplace/addons \
@@ -404,7 +407,9 @@ the `ui` block that points the dashboard at `sla_gen_ui`.
      -H 'content-type: application/json' -d '{"marketplace_id": "<_id>"}'
    ```
 
-The addons dashboard on port 11103 can do the same. The addons monitor polls every 30 seconds
+The Addons pages of the [Oakestra dashboard](https://github.com/robertjndw/oakestra-dashboard-v2)
+can do the same (register, install, disable and remove), as can the older addons dashboard on
+port 11103. The addons monitor polls every 30 seconds
 by default, after which the API is at `http://<root-orchestrator>:8000` and the playground at
 `http://<root-orchestrator>:8080`.
 
@@ -430,13 +435,21 @@ It adds:
 - **An "SLA generator" page** in the sidebar's Addons group, at `/addons/sla-generator`. It is
   the full playground: conversation, service map, code view, history and settings.
 - **A Deploy button** in the playground's toolbar. Once the current SLA is valid, it creates
-  the application in Oakestra with the dashboard's API and your login, then opens it. The
-  customer ID is always your organization, so the setting for it is hidden here.
+  the application in Oakestra with the dashboard's API and your login, then opens it. Creating
+  doesn't start any instances; deploy them from the application's page. The customer ID is
+  always your organization, so the setting for it is hidden here.
 - **A "Generate service" tab** on every application's detail page. It opens the application's
   current services in the playground, so you can describe what to add, and "Add services"
   creates only the new ones under that application. Changed or removed services are listed but
-  not applied, because Oakestra can't update services in place yet. "Open full page" continues
-  the same conversation at `/addons/sla-generator/applications/<id>`.
+  not applied, because Oakestra can't update services in place yet. The generator allows only
+  10 characters per service name where Oakestra allows 32, so the model may shorten an existing
+  name. A new name with the same image and service IP as a deployed service is listed as a
+  rename and not created a second time. "Open full page" continues the same conversation at
+  `/addons/sla-generator/applications/<id>` (it's disabled while the model is working).
+
+The generator never sets `arch`, which Oakestra needs for unikernel services, so Deploy and Add
+services refuse a unikernel until you add it in the code view. History, settings and drafts
+are kept in the browser per organization and user.
 
 ![The Generate service tab on an application's detail page](docs/images/dashboard-addon-tab.png)
 
@@ -451,8 +464,9 @@ current user, the Oakestra API client and its toasts. Everything else, like the 
 switching, comes from the dashboard's page itself.
 
 The addon UI ships as its own image, `oakestra-sla-gen-addon-ui`: nginx on port 80 serving the
-build. The dashboard finds it by container name, `addonui-sla-generator`, and proxies
-`/addon-assets/sla-generator/*` to it. The addon's nginx in turn proxies
+build. The dashboard finds it by host name, `addonui-sla-generator`, and proxies
+`/addon-assets/sla-generator/*` to it. The addons monitor sets that name as a network alias on
+the `oakestra` network; the container itself is still called `root_sla_gen_ui`. The addon's nginx in turn proxies
 `/addon-assets/sla-generator/api/*` to the sla-gen API (`API_UPSTREAM`, default
 `http://root_sla_gen:8000`), so the browser only talks to the dashboard's origin.
 
@@ -474,15 +488,23 @@ so the playground starts its turns with `Prefer: respond-async` and polls for th
 
    `sdk` is the range of dashboard SDK versions the addon was built against. A dashboard
    outside that range shows the addon as not compatible instead of loading it.
-2. **Put the addon container where the dashboard can reach it.** It must be named
-   `addonui-sla-generator` and be on a Docker network the dashboard container is on, and it must
-   reach the API container through `API_UPSTREAM`.
+2. **Open the dashboard.** Once the addon is `active`, the addons manager lists it at
+   `GET /api/v1/ui-addons` and the monitor gives `sla_gen_ui` the alias
+   `addonui-sla-generator` on the `oakestra` network, which is where the dashboard looks for
+   it. Log in and pick **SLA generator** in the sidebar.
 
 > [!IMPORTANT]
-> The Oakestra addons engine doesn't support UI addons yet. The marketplace rejects the `ui`
-> block, the addons manager has no `/ui-addons` list for the dashboard to poll, and nothing
-> names the container `addonui-<name>`. For now, run the addon with the dashboard's development
-> stack below, whose mock addons manager already does all of this.
+> This needs an addons engine with UI addon support and the new
+> [Oakestra dashboard](https://github.com/robertjndw/oakestra-dashboard-v2) as the root
+> orchestrator's `dashboard` service. The older Angular dashboard image has no `/ui-addons` or
+> `/addon-assets/` proxy, and an older addons engine rejects the `ui` block. Addon UIs also
+> don't load with `override-network-host.yml`, since the dashboard has no Docker DNS there to
+> resolve `addonui-<name>`. Without those, run the addon with the dashboard's development stack
+> below, whose mock addons manager does the same job.
+>
+> `/ui-addons` only lists `active` addons. If `sla_gen` or `sla_gen_frontend` fails to start,
+> for example because host port 8000 or 8080 is taken, the addon is only partially active and
+> the dashboard hides its UI even though `sla_gen_ui` runs.
 
 > [!WARNING]
 > `/addon-assets/` is public on the dashboard, so the sla-gen API behind it can be reached
@@ -564,8 +586,10 @@ docker buildx build --build-context dashboard=../oakestra-dashboard-v2 \
 
 When you move to a newer dashboard, update `frontend/addon/DASHBOARD_REF`; CI checks out the
 dashboard at that commit. The dashboard takes the addon's version from the addons manager's
-list (the `version` in the mock's `/__test` call above), not from the build. Change it when you
-ship new addon code, so open dashboards offer a reload.
+list, not from the build, and offers open dashboards a reload when it changes. With the mock
+that is the `version` in the `/__test` call above. The real addons manager uses the tag of the
+`sla_gen_ui` image, so with `:latest` the version never changes. Pin a version tag in
+`oakestra-addon.json` when you ship new addon code.
 
 ## How it works
 
