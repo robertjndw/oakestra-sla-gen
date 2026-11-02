@@ -10,6 +10,8 @@ export const SETTINGS_STORAGE_KEY = "oakestra-playground-settings";
 export const SESSION_STORAGE_KEY = "oakestra-playground-session";
 export const COMPOSER_STORAGE_KEY = "oakestra-playground-composer";
 export const HISTORY_STORAGE_KEY = "oakestra-playground-history";
+/** Id of the resizable split. The panels library stores its layout under a key derived from it. */
+export const SPLIT_LAYOUT_ID = "sla-gen-split";
 
 /** Each entry is at most an upload-sized SLA, so this stays well inside the ~5 MB quota. */
 export const MAX_HISTORY_ENTRIES = 20;
@@ -22,6 +24,13 @@ export const SESSION_SAVE_DEBOUNCE_MS = 300;
 export const VALIDATE_DEBOUNCE_MS = 400;
 
 export const API_PREFIX = "/api";
+
+export const TURN_POLL_INTERVAL_MS = 1000;
+/**
+ * How long an async turn's polls may keep failing (network down, proxy errors while the API
+ * restarts) before the turn counts as lost. The server keeps working on it meanwhile.
+ */
+export const TURN_POLL_GIVE_UP_MS = 60_000;
 
 export const MIN_RETRIES = 1;
 export const MAX_RETRIES = 10;

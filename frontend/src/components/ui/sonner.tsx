@@ -10,22 +10,22 @@ const Toaster = ({ ...props }: ToasterProps) => {
   return (
     <Sonner
       theme={dark ? "dark" : "light"}
-      className="toaster group"
+      className="toaster slagen:group"
       icons={{
         success: (
-          <CircleCheckIcon className="size-4" />
+          <CircleCheckIcon className="slagen:size-4" />
         ),
         info: (
-          <InfoIcon className="size-4" />
+          <InfoIcon className="slagen:size-4" />
         ),
         warning: (
-          <TriangleAlertIcon className="size-4" />
+          <TriangleAlertIcon className="slagen:size-4" />
         ),
         error: (
-          <OctagonXIcon className="size-4" />
+          <OctagonXIcon className="slagen:size-4" />
         ),
         loading: (
-          <Loader2Icon className="size-4 animate-spin" />
+          <Loader2Icon className="slagen:size-4 slagen:animate-spin" />
         ),
       }}
       style={

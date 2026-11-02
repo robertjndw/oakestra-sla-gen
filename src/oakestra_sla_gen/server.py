@@ -85,12 +85,16 @@ def create_app(
     *,
     model: str | None = None,
     default_method: OutputMethod = DEFAULT_METHOD,
+    run_in_background: Callable[[Callable[[], None]], Any] | None = None,
 ) -> FastAPI:
     """Build the app around `structured_llm_factory(method)`.
 
     The LLM connection is set up once at startup, but a request may still pick its own
     `method`, so we need a factory rather than a ready-made runnable. Requests that don't
     get `default_method`. Tests pass a factory that returns a fake.
+
+    `run_in_background` runs playground turns requested with `Prefer: respond-async`; None
+    means a thread pool.
     """
 
     def llm_for(method: str | None) -> Any:
@@ -148,6 +152,6 @@ def create_app(
     # importing it at module scope here would be a circular import at load time.
     from .playground import add_playground
 
-    add_playground(app, llm_for, model=model)
+    add_playground(app, llm_for, model=model, run_in_background=run_in_background)
 
     return app

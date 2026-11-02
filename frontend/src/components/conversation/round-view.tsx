@@ -35,16 +35,16 @@ export function RoundView({
     case "user":
       return (
         <Message>
-          <MessageContent className="gap-1.5">
-            <span className="text-muted-foreground text-xs font-medium">You</span>
-            <div className="flex flex-col gap-2 rounded-lg border bg-card px-3 py-2">
+          <MessageContent className="slagen:gap-1.5">
+            <span className="slagen:text-muted-foreground slagen:text-xs slagen:font-medium">You</span>
+            <div className="slagen:flex slagen:flex-col slagen:gap-2 slagen:rounded-lg slagen:border slagen:bg-card slagen:px-3 slagen:py-2">
               {round.fileName && (
-                <Badge variant="secondary" className="max-w-full">
+                <Badge variant="secondary" className="slagen:max-w-full">
                   <FileTextIcon aria-hidden />
-                  <span className="truncate">{round.fileName}</span>
+                  <span className="slagen:truncate">{round.fileName}</span>
                 </Badge>
               )}
-              <p className="whitespace-pre-wrap break-words leading-relaxed">{round.text}</p>
+              <p className="slagen:whitespace-pre-wrap slagen:break-words slagen:leading-relaxed">{round.text}</p>
             </div>
           </MessageContent>
         </Message>
@@ -65,13 +65,13 @@ export function RoundView({
       const shown = round.errors.slice(0, 5);
       return (
         <Message>
-          <MessageContent className="w-full">
+          <MessageContent className="slagen:w-full">
             <Alert variant="destructive">
               <OctagonAlertIcon />
               <AlertTitle>{`No valid draft. Gave up after ${plural(round.attempts.length || 1, "attempt")}`}</AlertTitle>
-              <AlertDescription className="flex flex-col gap-2">
+              <AlertDescription className="slagen:flex slagen:flex-col slagen:gap-2">
                 {shown.length > 0 && (
-                  <ul className="list-disc space-y-0.5 pl-4">
+                  <ul className="slagen:list-disc slagen:space-y-0.5 slagen:pl-4">
                     {shown.map((e, i) => (
                       <li key={i}>{e}</li>
                     ))}
@@ -90,7 +90,7 @@ export function RoundView({
                     </Button>
                   </div>
                 )}
-                <div className="text-foreground">
+                <div className="slagen:text-foreground">
                   <Attempts attempts={round.attempts} />
                 </div>
               </AlertDescription>
@@ -102,11 +102,11 @@ export function RoundView({
     case "notice":
       return (
         <Message>
-          <MessageContent className="w-full">
+          <MessageContent className="slagen:w-full">
             <Alert>
               <OctagonAlertIcon />
               <AlertTitle>{round.title}</AlertTitle>
-              <AlertDescription className="flex flex-col gap-2">
+              <AlertDescription className="slagen:flex slagen:flex-col slagen:gap-2">
                 {round.detail && <p>{round.detail}</p>}
                 {round.help && <p>{round.help}</p>}
                 {round.action === "new-session" && (
@@ -123,8 +123,8 @@ export function RoundView({
       );
     case "accepted":
       return (
-        <p className="flex items-center gap-2 text-sm text-primary" role="status">
-          <CheckCircle2Icon className="size-4" aria-hidden />
+        <p className="slagen:flex slagen:items-center slagen:gap-2 slagen:text-sm slagen:text-primary" role="status">
+          <CheckCircle2Icon className="slagen:size-4" aria-hidden />
           {`You accepted draft ${round.draft}`}
         </p>
       );
@@ -166,7 +166,7 @@ function QuestionRoundView({
   const shown = draftNo !== null && (draftNav.viewed ?? draftNav.latest) === draftNo;
   return (
     <Message>
-      <MessageContent className="gap-3">
+      <MessageContent className="slagen:gap-3">
         <StatusHead
           status={isDraft ? "ok" : "ask"}
           title={title}
@@ -177,13 +177,13 @@ function QuestionRoundView({
           viewing={draftNo !== null && draftNav.viewed === draftNo}
         />
         {isDraft && (
-          <ul className="list-disc space-y-0.5 pl-5">
+          <ul className="slagen:list-disc slagen:space-y-0.5 slagen:pl-5">
             {round.changes.map((c, i) => (
               <li key={i}>{c}</li>
             ))}
           </ul>
         )}
-        {note && <p className="text-muted-foreground">{note}</p>}
+        {note && <p className="slagen:text-muted-foreground">{note}</p>}
         {n > 0 && (
           <QuestionForm
             questions={round.questions}

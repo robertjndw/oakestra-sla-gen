@@ -135,18 +135,27 @@ export function fromSnapshot(snap: SessionSnapshot, storedSettings: Settings): S
   };
 }
 
+/** Where the settings (localStorage) and the session snapshot (sessionStorage) are kept. */
+export interface PersistKeys {
+  settings: string;
+  session: string;
+}
+
+const DEFAULT_KEYS: PersistKeys = { settings: SETTINGS_STORAGE_KEY, session: SESSION_STORAGE_KEY };
+
 /** Initial state for the app: the last snapshot of this tab, or a fresh session with saved settings. */
-export function restoreSession(): SessionState {
-  const settings = readStored("local", SETTINGS_STORAGE_KEY, DEFAULT_SETTINGS, isSettings);
-  const snap = readStored<SessionSnapshot | null>("session", SESSION_STORAGE_KEY, null, isSnapshot);
+export function restoreSession(keys: PersistKeys = DEFAULT_KEYS): SessionState {
+  const settings = readStored("local", keys.settings, DEFAULT_SETTINGS, isSettings);
+  const snap = readStored<SessionSnapshot | null>("session", keys.session, null, isSnapshot);
   return snap ? fromSnapshot(snap, settings) : { ...initialState(), settings };
 }
 
-export function usePersistSession(state: SessionState): void {
+export function usePersistSession(state: SessionState, keys: PersistKeys = DEFAULT_KEYS): void {
   const { settings } = state;
+  const { settings: settingsKey, session: sessionKey } = keys;
   useEffect(() => {
-    writeStored("local", SETTINGS_STORAGE_KEY, settings);
-  }, [settings]);
+    writeStored("local", settingsKey, settings);
+  }, [settings, settingsKey]);
 
   // Debounced because the snapshot carries every draft, too much to stringify per keystroke.
   const pending = useRef<SessionState | null>(null);
@@ -157,10 +166,10 @@ export function usePersistSession(state: SessionState): void {
     const snap = toSnapshot(s);
     // A failed write (full quota) must not leave an older snapshot behind: a reload would bring
     // back a conversation that no longer matches the server's session.
-    if (!snap || !writeStored("session", SESSION_STORAGE_KEY, snap)) {
-      removeStored("session", SESSION_STORAGE_KEY);
+    if (!snap || !writeStored("session", sessionKey, snap)) {
+      removeStored("session", sessionKey);
     }
-  }, []);
+  }, [sessionKey]);
 
   useEffect(() => {
     pending.current = state;

@@ -1,4 +1,3 @@
-import "@xyflow/react/dist/style.css";
 import {
   Background,
   BaseEdge,
@@ -23,9 +22,11 @@ import { cn } from "@/lib/utils";
 import { focusService } from "./focus-service";
 import { computeMapLayout, NODE_H, NODE_W, OUTSIDE_H, OUTSIDE_W, serviceId } from "./map-layout";
 import type { ServiceMark } from "./marks";
-import "./output.css";
 import { OutsidePreview, ServicePreview } from "./service-preview";
 import { useIsDark } from "@/hooks/use-is-dark";
+import { injectXyflowStyles } from "./xyflow-styles";
+
+injectXyflowStyles();
 
 interface ServiceNodeData extends Record<string, unknown> {
   entry: ServiceEntry;
@@ -47,6 +48,10 @@ type OutsideFlowNode = FlowNode<OutsideNodeData, "outside">;
 // renders those from the static nodeTypes map, so they get the setter through context.
 // Dimming goes through context too: handing React Flow a copied node object makes it drop
 // the node's measurements, which hides the node and unmounts its edges until it re-measures.
+// Nodes, edges and edge labels fade together when the map dims around the active node.
+const FADES = "slagen:transition-opacity slagen:duration-150 slagen:ease-[ease-out] slagen:motion-reduce:transition-none";
+const DIMMED = "slagen:opacity-30";
+
 interface ActiveNodeState {
   setFocused: (id: string | null) => void;
   lit: Set<string> | null;
@@ -57,7 +62,7 @@ function useActiveNode(id: string) {
   const { setFocused, lit } = useContext(ActiveNodeContext);
   return {
     handlers: { onFocus: () => setFocused(id), onBlur: () => setFocused(null) },
-    dimClass: lit && !lit.has(id) ? "is-dimmed" : "",
+    dimClass: lit && !lit.has(id) ? DIMMED : "",
   };
 }
 
@@ -68,9 +73,10 @@ function MapNode({
   ...props
 }: ComponentProps<typeof Card> & { handles: { target: boolean; source: boolean } }) {
   return (
-    <Card className={cn("relative gap-0 rounded-md p-0", className)} {...props}>
-      {handles.target && <Handle position={Position.Left} type="target" />}
-      {handles.source && <Handle position={Position.Right} type="source" />}
+    <Card className={cn("slagen:relative slagen:gap-0 slagen:rounded-md slagen:p-0", className)} {...props}>
+      {/* Edges need handles to attach to, but nothing on this map can be connected by hand. */}
+      {handles.target && <Handle position={Position.Left} type="target" className="slagen:pointer-events-none slagen:opacity-0" />}
+      {handles.source && <Handle position={Position.Right} type="source" className="slagen:pointer-events-none slagen:opacity-0" />}
       {children}
     </Card>
   );
@@ -82,10 +88,10 @@ function ServiceNode({ id, data }: NodeProps<ServiceFlowNode>) {
   return (
     <MapNode
       handles={{ target: true, source: true }}
-      className={`service-map-node ${dimClass} ${tone === "bad" ? "border-rust" : tone === "warn" ? "border-amber-dot" : ""}`}
+      className={`${FADES} ${dimClass} ${tone === "bad" ? "slagen:border-rust" : tone === "warn" ? "slagen:border-amber-dot" : ""}`}
       style={{ width: NODE_W, height: NODE_H }}
     >
-      <CardContent className="h-full p-0">
+      <CardContent className="slagen:h-full slagen:p-0">
         <HoverCard openDelay={250} closeDelay={100}>
           <HoverCardTrigger asChild>
             <button
@@ -93,22 +99,22 @@ function ServiceNode({ id, data }: NodeProps<ServiceFlowNode>) {
               aria-label={"Show " + data.name}
               onClick={() => focusService(data.entry)}
               {...handlers}
-              className="flex h-full w-full flex-col justify-center gap-0.5 rounded-md px-3 text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              className="slagen:flex slagen:h-full slagen:w-full slagen:flex-col slagen:justify-center slagen:gap-0.5 slagen:rounded-md slagen:px-3 slagen:text-left slagen:focus-visible:ring-2 slagen:focus-visible:ring-ring slagen:focus-visible:outline-none"
             >
-              <span className="flex items-baseline justify-between gap-2">
-                <span className="truncate text-[13px] font-semibold">{data.name}</span>
+              <span className="slagen:flex slagen:items-baseline slagen:justify-between slagen:gap-2">
+                <span className="slagen:truncate slagen:text-[13px] slagen:font-semibold">{data.name}</span>
                 {data.flag && (
                   <span
-                    className={`shrink-0 text-[10.5px] font-semibold ${data.flag.tone === "bad" ? "text-rust" : "text-amber"}`}
+                    className={`slagen:shrink-0 slagen:text-[10.5px] slagen:font-semibold ${data.flag.tone === "bad" ? "slagen:text-rust" : "slagen:text-amber"}`}
                   >
                     {data.flag.text}
                   </span>
                 )}
               </span>
-              <span className="truncate font-mono text-[11px] text-muted-foreground">{data.image}</span>
+              <span className="slagen:truncate slagen:font-mono slagen:text-[11px] slagen:text-muted-foreground">{data.image}</span>
             </button>
           </HoverCardTrigger>
-          <HoverCardContent side="bottom" align="center" collisionPadding={16} className="w-72">
+          <HoverCardContent side="bottom" align="center" collisionPadding={16} className="slagen:w-72">
             <ServicePreview service={data.entry} mark={data.mark} links={data.links} />
           </HoverCardContent>
         </HoverCard>
@@ -122,7 +128,7 @@ function OutsideNode({ id, data }: NodeProps<OutsideFlowNode>) {
   return (
     <MapNode
       handles={{ target: false, source: true }}
-      className={`service-map-node ${dimClass} items-center justify-center border border-dashed border-muted-foreground/40 bg-transparent ring-0`}
+      className={`${FADES} ${dimClass} slagen:items-center slagen:justify-center slagen:border slagen:border-dashed slagen:border-muted-foreground/40 slagen:bg-transparent slagen:ring-0`}
       style={{ width: OUTSIDE_W, height: OUTSIDE_H }}
     >
       <HoverCard openDelay={250} closeDelay={100}>
@@ -131,12 +137,12 @@ function OutsideNode({ id, data }: NodeProps<OutsideFlowNode>) {
             // Focusable so keyboard users get the same port summary as a hover.
             tabIndex={0}
             {...handlers}
-            className="flex h-full items-center justify-center rounded-md text-xs font-medium text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            className="slagen:flex slagen:h-full slagen:items-center slagen:justify-center slagen:rounded-md slagen:text-xs slagen:font-medium slagen:text-muted-foreground slagen:focus-visible:ring-2 slagen:focus-visible:ring-ring slagen:focus-visible:outline-none"
           >
             Outside
           </span>
         </HoverCardTrigger>
-        <HoverCardContent side="bottom" align="center" collisionPadding={16} className="w-64">
+        <HoverCardContent side="bottom" align="center" collisionPadding={16} className="slagen:w-64">
           <OutsidePreview exposed={data.exposed} />
         </HoverCardContent>
       </HoverCard>
@@ -161,7 +167,7 @@ function EdgeLabel({
   return (
     <EdgeLabelRenderer>
       <div
-        className={`service-map-label pointer-events-none absolute rounded bg-card/90 px-1 font-mono text-[10px] ${port ? "text-primary" : "text-muted-foreground"} ${dimmed ? "is-dimmed" : ""}`}
+        className={`${FADES} slagen:pointer-events-none slagen:absolute slagen:rounded slagen:bg-card/90 slagen:px-1 slagen:font-mono slagen:text-[10px] ${port ? "slagen:text-primary" : "slagen:text-muted-foreground"} ${dimmed ? DIMMED : ""}`}
         style={{ transform: `translate(-50%, -50%) translate(${x}px, ${y}px)` }}
       >
         {text}
@@ -251,6 +257,7 @@ export function ServiceMap({ list, links, marks }: Props) {
       label: l.label,
       markerEnd: arrow,
       style: { stroke: "var(--primary)", strokeWidth: 1.3 },
+      className: FADES,
     }));
     for (const s of list) {
       if (!layout.exposed.includes(serviceId(s))) continue;
@@ -264,6 +271,7 @@ export function ServiceMap({ list, links, marks }: Props) {
           .join(", "),
         markerEnd: { type: MarkerType.ArrowClosed, color: "var(--ring)" },
         style: { stroke: "var(--ring)", strokeWidth: 1.3, strokeDasharray: "5 5" },
+        className: FADES,
       });
     }
     return out;
@@ -302,7 +310,7 @@ export function ServiceMap({ list, links, marks }: Props) {
               ? e
               : {
                   ...e,
-                  className: "is-dimmed",
+                  className: `${FADES} ${DIMMED}`,
                   data: { ...e.data, dimmed: true },
                 },
           )
@@ -317,7 +325,9 @@ export function ServiceMap({ list, links, marks }: Props) {
 
   return (
     <div
-      className="service-map overflow-hidden rounded-lg border"
+      // React Flow's attribution has no className prop and the addon build rejects selectors on
+      // its react-flow__ class, so data-message, which only the attribution carries, is the hook.
+      className="slagen:overflow-hidden slagen:rounded-lg slagen:border slagen:[&_[data-message]]:bg-transparent slagen:[&_[data-message]]:opacity-60"
       style={{ height }}
       role="group"
       aria-label={`Service map: ${plural(list.length, "service")}, ${plural(links.length, "connection")}`}
@@ -360,7 +370,7 @@ export function ServiceMap({ list, links, marks }: Props) {
           <Controls
             showInteractive={false}
             orientation="horizontal"
-            className="gap-px overflow-hidden rounded-md border bg-card p-0.5 shadow-none! [&>button]:rounded-md [&>button]:border-none! [&>button]:bg-transparent! [&>button]:hover:bg-secondary!"
+            className="slagen:gap-px slagen:overflow-hidden slagen:rounded-md slagen:border slagen:bg-card slagen:p-0.5 slagen:shadow-none! slagen:[&>button]:rounded-md slagen:[&>button]:border-none! slagen:[&>button]:bg-transparent! slagen:[&>button]:hover:bg-secondary!"
           />
         </ReactFlow>
       </ActiveNodeContext>

@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import type { Notifier } from "@/host/host-context";
 
 function copyWithFallback(text: string): boolean {
   const ta = document.createElement("textarea");
@@ -40,17 +40,16 @@ export function downloadText(text: string, filename: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-
 /** Copies `text` and says how it went, e.g. what = "the SLA JSON". */
-export async function copyWithToast(text: string, what: string): Promise<boolean> {
+export async function copyWithNotice(text: string, what: string, notify: Notifier): Promise<boolean> {
   const ok = await copyText(text);
-  if (ok) toast.success(`Copied ${what}`);
-  else toast.error(`Could not copy ${what}`);
+  if (ok) notify.success(`Copied ${what}`);
+  else notify.error(`Could not copy ${what}`);
   return ok;
 }
 
-export async function copySla(text: string) {
-  await copyWithToast(text, "the SLA JSON");
+export async function copySla(text: string, notify: Notifier) {
+  await copyWithNotice(text, "the SLA JSON", notify);
 }
 
 export function downloadSla(text: string) {

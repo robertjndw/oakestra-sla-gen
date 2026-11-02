@@ -1,11 +1,11 @@
 import { useRef, useState, type DragEvent, type KeyboardEvent, type RefObject } from "react";
 import { FileTextIcon, HistoryIcon, PaperclipIcon, XIcon } from "lucide-react";
-import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from "@/components/ui/input-group";
 import { Spinner } from "@/components/ui/spinner";
 import { useSessionContext } from "@/hooks/session-context";
+import { useHost } from "@/host/host-context";
 import type { InputFile } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { composerModel, readInputFile, type ActiveForm } from "./composer-logic";
@@ -13,7 +13,7 @@ import { composerModel, readInputFile, type ActiveForm } from "./composer-logic"
 const IS_MAC = /Mac|iPhone|iPad/.test(globalThis.navigator?.platform || globalThis.navigator?.userAgent || "");
 const ACCEPT = ".yml,.yaml,.json,application/x-yaml,text/yaml,application/json";
 const KIND_LABEL = { compose: "Compose", sla: "SLA" } as const;
-const KBD = "rounded-sm border bg-muted px-1 font-sans text-[11px]";
+const KBD = "slagen:rounded-sm slagen:border slagen:bg-muted slagen:px-1 slagen:font-sans slagen:text-[11px]";
 
 interface Props {
   text: string;
@@ -26,6 +26,7 @@ interface Props {
 
 export function Composer({ text, onTextChange, inputFile, onInputFileChange, form, inputRef }: Props) {
   const { state, settingsLocked, send, answer, accept, newSession } = useSessionContext();
+  const { notify } = useHost();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
 
@@ -52,7 +53,7 @@ export function Composer({ text, onTextChange, inputFile, onInputFileChange, for
   const attach = async (file: File) => {
     const res = await readInputFile(file);
     if (!res.ok) {
-      toast.error("File too large", { description: res.error });
+      notify.error("File too large", { description: res.error });
       return;
     }
     onInputFileChange(res.file);
@@ -82,7 +83,7 @@ export function Composer({ text, onTextChange, inputFile, onInputFileChange, for
 
   return (
     <div
-      className={cn("rounded-lg", dragOver && "ring-2 ring-primary/60")}
+      className={cn("slagen:rounded-lg", dragOver && "slagen:ring-2 slagen:ring-primary/60")}
       onDragOver={(e) => {
         if (!isFileDrag(e)) return;
         e.preventDefault(); // otherwise the browser navigates to the dropped file
@@ -110,22 +111,22 @@ export function Composer({ text, onTextChange, inputFile, onInputFileChange, for
           submit();
         }}
       >
-        <InputGroup className="overflow-hidden">
+        <InputGroup className="slagen:overflow-hidden">
           {!settingsLocked && attached && (
-            <InputGroupAddon align="block-start" className="flex-wrap gap-1">
-              <Badge variant="secondary" className="h-6 max-w-full gap-1.5 pr-0.5">
+            <InputGroupAddon align="block-start" className="slagen:flex-wrap slagen:gap-1">
+              <Badge variant="secondary" className="slagen:h-6 slagen:max-w-full slagen:gap-1.5 slagen:pr-0.5">
                 {attached.origin === "history" ? <HistoryIcon aria-hidden /> : <FileTextIcon aria-hidden />}
                 <span data-testid="file-chip-kind">
                   {attached.origin === "history" ? "From history" : KIND_LABEL[attached.kind]}
                 </span>
-                <span className="truncate font-normal" data-testid="file-chip-name">
+                <span className="slagen:truncate slagen:font-normal" data-testid="file-chip-name">
                   {attached.name}
                 </span>
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon-xs"
-                  className="size-5 rounded-full"
+                  className="slagen:size-5 slagen:rounded-full"
                   aria-label={`Remove ${attached.name}`}
                   onClick={() => {
                     // The reopened SLA lives in the editor, so dropping it means starting over.
@@ -142,7 +143,7 @@ export function Composer({ text, onTextChange, inputFile, onInputFileChange, for
           <InputGroupTextarea
             ref={inputRef}
             name="message"
-            className="field-sizing-content max-h-48 min-h-16"
+            className="slagen:field-sizing-content slagen:max-h-48 slagen:min-h-16"
             aria-label={model.ariaLabel}
             value={text}
             onChange={(e) => onTextChange(e.currentTarget.value)}
@@ -150,8 +151,8 @@ export function Composer({ text, onTextChange, inputFile, onInputFileChange, for
             placeholder={model.placeholder}
             disabled={turnRunning}
           />
-          <InputGroupAddon align="block-end" className="justify-between gap-1">
-            <div className="flex min-w-0 items-center gap-1">
+          <InputGroupAddon align="block-end" className="slagen:justify-between slagen:gap-1">
+            <div className="slagen:flex slagen:min-w-0 slagen:items-center slagen:gap-1">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -172,13 +173,13 @@ export function Composer({ text, onTextChange, inputFile, onInputFileChange, for
                   disabled={!canAttach}
                   onClick={() => fileInputRef.current?.click()}
                 >
-                  <PaperclipIcon className="size-4" aria-hidden />
+                  <PaperclipIcon className="slagen:size-4" aria-hidden />
                   Attach compose or SLA
                 </InputGroupButton>
               )}
               <Hint kind={model.hint} action={state.sessionId ? "update" : "generate"} />
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="slagen:flex slagen:items-center slagen:gap-1.5">
               {state.sessionId && state.modelSla && (
                 <Button
                   type="button"
@@ -195,7 +196,7 @@ export function Composer({ text, onTextChange, inputFile, onInputFileChange, for
                 size="sm"
                 // Only one primary action at a time; with nothing typed, Accept is the next step.
                 variant={model.acceptPrimary ? "outline" : "default"}
-                className="px-3"
+                className="slagen:px-3"
                 disabled={!model.canSend}
                 aria-label={model.label}
               >
@@ -211,7 +212,7 @@ export function Composer({ text, onTextChange, inputFile, onInputFileChange, for
 
 function Hint({ kind, action }: { kind: ReturnType<typeof composerModel>["hint"]; action: string }) {
   if (!kind) return null;
-  const cls = "hidden text-muted-foreground text-xs sm:inline";
+  const cls = "slagen:hidden slagen:text-muted-foreground slagen:text-xs slagen:sm:inline";
   if (kind === "answer-or-change") {
     return <span className={cls}>Answer a question, describe a change, or accept the draft.</span>;
   }

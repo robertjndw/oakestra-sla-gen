@@ -12,16 +12,16 @@ export function ViewingBar({ draft, latest, onRestore, onBack }: Props) {
   return (
     <div
       role="status"
-      className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b bg-amber-soft px-4 py-2 text-sm"
+      className="slagen:flex slagen:shrink-0 slagen:flex-wrap slagen:items-center slagen:justify-between slagen:gap-x-4 slagen:gap-y-2 slagen:border-b slagen:bg-amber-soft slagen:px-4 slagen:py-2 slagen:text-sm"
     >
-      <p className="flex min-w-0 items-center gap-2">
-        <HistoryIcon className="size-4 shrink-0 text-amber" aria-hidden />
+      <p className="slagen:flex slagen:min-w-0 slagen:items-center slagen:gap-2">
+        <HistoryIcon className="slagen:size-4 slagen:shrink-0 slagen:text-amber" aria-hidden />
         <span>
-          <span className="font-medium">{`Viewing draft ${draft}`}</span>
-          <span className="text-muted-foreground">{` of ${latest}. Read-only.`}</span>
+          <span className="slagen:font-medium">{`Viewing draft ${draft}`}</span>
+          <span className="slagen:text-muted-foreground">{` of ${latest}. Read-only.`}</span>
         </span>
       </p>
-      <div className="flex items-center gap-2">
+      <div className="slagen:flex slagen:items-center slagen:gap-2">
         <Button type="button" variant="outline" size="sm" onClick={onRestore}>
           Restore this draft
         </Button>

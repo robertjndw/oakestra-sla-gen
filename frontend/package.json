@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "typecheck": "tsc -b --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "check:classes": "node scripts/prefix-classes.mts --check"
   },
   "dependencies": {
     "@codemirror/lang-json": "^6.0.2",
@@ -37,6 +38,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@tailwindcss/node": "^4.3.3",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
@@ -55,5 +57,5 @@
     "vite": "^8.3.0",
     "vitest": "^5.0.3"
   },
-  "packageManager": "pnpm@12.8.1"
+  "packageManager": "pnpm@12.16.1"
 }

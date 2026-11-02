@@ -98,4 +98,10 @@ export interface InputFile {
 /** Body of GET /playground/turns/{id}: the attempts a running turn has finished so far. */
 export interface TurnProgress {
   attempts: Attempt[];
+  /** Only for a turn started with `Prefer: respond-async`. Once true, `status` and `result` are set. */
+  done?: boolean;
+  /** HTTP status the blocking POST would have answered with. */
+  status?: number;
+  /** The body the blocking POST would have answered with. */
+  result?: unknown;
 }

@@ -27,9 +27,9 @@ function copyFor({ turnRunning, hasSession }: Props): { title: string; text: str
 export function EmptyOutput(props: Props) {
   const { title, text } = copyFor(props);
   return (
-    <Empty className="my-auto">
+    <Empty className="slagen:my-auto">
       <EmptyHeader>
-        <EmptyTitle className="text-base">{title}</EmptyTitle>
+        <EmptyTitle className="slagen:text-base">{title}</EmptyTitle>
         <EmptyDescription>{text}</EmptyDescription>
       </EmptyHeader>
     </Empty>

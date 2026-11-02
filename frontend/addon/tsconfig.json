@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    // The dashboard's packages/tsconfig base.json + react.json, inlined because @oakestra/tsconfig
+    // is internal to that repository (like the create-addon standalone template).
+    "target": "ES2023",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "moduleDetection": "force",
+    "jsx": "react-jsx",
+    "strict": true,
+    // noUncheckedIndexedAccess and noImplicitOverride from the dashboard's set are left out:
+    // they apply to the whole program, which includes the shared code in ../src, and that is
+    // written for the standalone app's tsconfig without them.
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    // The linked SDK is TypeScript source with explicit `.ts` imports.
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "types": ["vite/client", "node", "@oakestra/dashboard-sdk/vite/client"],
+    "paths": {
+      "@/*": ["../src/*"],
+      // Three React installs meet here: ours (frontend/node_modules, used by ../src), the
+      // dashboard's (seen by the linked SDK and @oakestra/ui sources) and the peer copy pnpm put
+      // next to react-router. Pinning the types to one of them keeps ReactNode, ComponentType and
+      // friends identical across all three, otherwise every prop crossing the boundary mismatches.
+      "react": ["../node_modules/@types/react"],
+      "react/*": ["../node_modules/@types/react/*"],
+      "react-dom": ["../node_modules/@types/react-dom"],
+      "react-dom/*": ["../node_modules/@types/react-dom/*"]
+    }
+  },
+  "include": ["src", "test", "vite.config.ts", "vitest.config.ts"]
+}

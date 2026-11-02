@@ -24,6 +24,17 @@
       "environment": {
         "API_UPSTREAM": "http://root_sla_gen:8000"
       }
+    },
+    {
+      "service_name": "sla_gen_ui",
+      "image": "ghcr.io/robertjndw/oakestra-sla-gen-addon-ui:latest",
+      "environment": {
+        "API_UPSTREAM": "http://root_sla_gen:8000"
+      }
     }
-  ]
+  ],
+  "ui": {
+    "service": "sla_gen_ui",
+    "sdk": "^0.1.0"
+  }
 }

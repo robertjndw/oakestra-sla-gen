@@ -19,8 +19,8 @@ const MAX_ERRORS = 2;
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
     <>
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 break-words">{children}</dd>
+      <dt className="slagen:text-muted-foreground">{label}</dt>
+      <dd className="slagen:min-w-0 slagen:break-words">{children}</dd>
     </>
   );
 }
@@ -35,20 +35,20 @@ export function ServicePreview({ service: s, mark, links }: Props) {
   const placement = describePlacement(ms);
 
   return (
-    <div className="space-y-3">
-      <div className="space-y-0.5">
-        <p className="font-semibold break-words">{serviceName(s)}</p>
+    <div className="slagen:space-y-3">
+      <div className="slagen:space-y-0.5">
+        <p className="slagen:font-semibold slagen:break-words">{serviceName(s)}</p>
         {ms.microservice_namespace && (
-          <p className="text-xs text-muted-foreground">namespace {ms.microservice_namespace}</p>
+          <p className="slagen:text-xs slagen:text-muted-foreground">namespace {ms.microservice_namespace}</p>
         )}
       </div>
 
       {mark.errors.length > 0 && (
         // Alert defaults to role="alert", which would be announced every time the card opens.
-        <Alert variant="danger" role="group" className="gap-1 rounded-md px-2.5 py-2 text-xs">
-          <AlertTitle className="font-semibold">{plural(mark.errors.length, "problem")}</AlertTitle>
-          <AlertDescription className="text-xs">
-            <ul className="list-disc space-y-0.5 pl-4">
+        <Alert variant="danger" role="group" className="slagen:gap-1 slagen:rounded-md slagen:px-2.5 slagen:py-2 slagen:text-xs">
+          <AlertTitle className="slagen:font-semibold">{plural(mark.errors.length, "problem")}</AlertTitle>
+          <AlertDescription className="slagen:text-xs">
+            <ul className="slagen:list-disc slagen:space-y-0.5 slagen:pl-4">
               {mark.errors.slice(0, MAX_ERRORS).map((e, i) => (
                 <li key={i}>{e}</li>
               ))}
@@ -61,15 +61,15 @@ export function ServicePreview({ service: s, mark, links }: Props) {
         <Badge variant="warning">New in this draft</Badge>
       ) : (
         mark.changed.length > 0 && (
-          <Badge variant="warning" className="h-auto justify-start text-left whitespace-normal">
+          <Badge variant="warning" className="slagen:h-auto slagen:justify-start slagen:text-left slagen:whitespace-normal">
             Changed: {joinWords(mark.changed.map(fieldLabel))}
           </Badge>
         )
       )}
 
-      <dl className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-xs">
+      <dl className="slagen:grid slagen:grid-cols-[4.5rem_minmax(0,1fr)] slagen:gap-x-3 slagen:gap-y-1.5 slagen:text-xs">
         <Row label="Image">
-          <code className="font-mono break-all">{ms.code || "none"}</code>
+          <code className="slagen:font-mono slagen:break-all">{ms.code || "none"}</code>
         </Row>
         {ms.virtualization && ms.virtualization !== "container" && (
           <Row label="Runtime">{ms.virtualization}</Row>
@@ -78,7 +78,7 @@ export function ServicePreview({ service: s, mark, links }: Props) {
         {ports.length > 0 && <Row label="Ports">{ports.map(portLabel).join(", ")}</Row>}
         {ms.addresses?.rr_ip && (
           <Row label="Service IP">
-            <code className="font-mono">{ms.addresses.rr_ip}</code>
+            <code className="slagen:font-mono">{ms.addresses.rr_ip}</code>
           </Row>
         )}
         {calls.length > 0 && <Row label="Calls">{joinWords(calls)}</Row>}
@@ -87,7 +87,7 @@ export function ServicePreview({ service: s, mark, links }: Props) {
         {placement && <Row label="Placement">{placement}</Row>}
       </dl>
 
-      <p className="border-t pt-2 text-xs text-muted-foreground">Click for the full configuration</p>
+      <p className="slagen:border-t slagen:pt-2 slagen:text-xs slagen:text-muted-foreground">Click for the full configuration</p>
     </div>
   );
 }
@@ -95,12 +95,12 @@ export function ServicePreview({ service: s, mark, links }: Props) {
 /** Ports open to the outside, per service. */
 export function OutsidePreview({ exposed }: { exposed: ServiceEntry[] }) {
   return (
-    <div className="space-y-2">
-      <p className="font-semibold">Open to the outside</p>
-      <dl className="grid grid-cols-[minmax(0,auto)_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs">
+    <div className="slagen:space-y-2">
+      <p className="slagen:font-semibold">Open to the outside</p>
+      <dl className="slagen:grid slagen:grid-cols-[minmax(0,auto)_minmax(0,1fr)] slagen:gap-x-3 slagen:gap-y-1 slagen:text-xs">
         {exposed.map((s, i) => (
           <Row key={i} label={serviceName(s)}>
-            <span className="font-mono">{parsePorts(s.ms.port).map(portLabel).join(", ")}</span>
+            <span className="slagen:font-mono">{parsePorts(s.ms.port).map(portLabel).join(", ")}</span>
           </Row>
         ))}
       </dl>

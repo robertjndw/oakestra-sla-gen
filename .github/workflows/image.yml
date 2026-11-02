@@ -34,11 +34,59 @@ jobs:
         run: |
           pnpm install --frozen-lockfile
           pnpm lint
+          pnpm check:classes
           pnpm typecheck
           pnpm test
 
+  # The addon UI links the dashboard's SDK and UI packages from source, so it needs a checkout of
+  # the dashboard at the commit pinned in DASHBOARD_REF.
+  addon:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: oakestra-sla-gen
+
+      - id: ref
+        run: echo "ref=$(cat oakestra-sla-gen/frontend/addon/DASHBOARD_REF)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v7
+        with:
+          repository: robertjndw/oakestra-dashboard-v2
+          ref: ${{ steps.ref.outputs.ref }}
+          path: oakestra-dashboard-v2
+          # A private dashboard repo needs a PAT with read access in DASHBOARD_REPO_TOKEN; the
+          # default token only covers this repo.
+          token: ${{ secrets.DASHBOARD_REPO_TOKEN || github.token }}
+
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: oakestra-sla-gen/frontend/addon/package.json
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: |
+            oakestra-dashboard-v2/pnpm-lock.yaml
+            oakestra-sla-gen/frontend/pnpm-lock.yaml
+            oakestra-sla-gen/frontend/addon/pnpm-lock.yaml
+      - name: Install dashboard packages
+        working-directory: oakestra-dashboard-v2
+        run: pnpm install --frozen-lockfile --filter "@oakestra/dashboard-sdk..." --filter "@oakestra/ui..."
+      # The addon resolves react and friends from frontend/node_modules.
+      - name: Install frontend
+        working-directory: oakestra-sla-gen/frontend
+        run: pnpm install --frozen-lockfile
+      - name: Addon checks
+        working-directory: oakestra-sla-gen/frontend/addon
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm typecheck
+          pnpm test
+          pnpm build
+
   build:
-    needs: checks
+    needs: [checks, addon]
     runs-on: ubuntu-latest
     # Only this job pushes images, so checks doesn't get packages: write. On PRs the token is
     # never used here: login and push are skipped, and docker build doesn't receive it.
@@ -49,12 +97,32 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - context: .
+          - context: oakestra-sla-gen
+            file: oakestra-sla-gen/Dockerfile
             image: oakestra-sla-gen
-          - context: frontend
+          - context: oakestra-sla-gen/frontend
+            file: oakestra-sla-gen/frontend/Dockerfile
             image: oakestra-sla-gen-frontend
+          - context: oakestra-sla-gen/frontend
+            file: oakestra-sla-gen/frontend/addon/Dockerfile
+            image: oakestra-sla-gen-addon-ui
+            dashboard: true
     steps:
       - uses: actions/checkout@v7
+        with:
+          path: oakestra-sla-gen
+
+      - id: ref
+        if: matrix.dashboard
+        run: echo "ref=$(cat oakestra-sla-gen/frontend/addon/DASHBOARD_REF)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v7
+        if: matrix.dashboard
+        with:
+          repository: robertjndw/oakestra-dashboard-v2
+          ref: ${{ steps.ref.outputs.ref }}
+          path: oakestra-dashboard-v2
+          token: ${{ secrets.DASHBOARD_REPO_TOKEN || github.token }}
 
       - uses: docker/setup-qemu-action@v4
       - uses: docker/setup-buildx-action@v4
@@ -81,6 +149,8 @@ jobs:
       - uses: docker/build-push-action@v7
         with:
           context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          build-contexts: ${{ matrix.dashboard && 'dashboard=oakestra-dashboard-v2' || '' }}
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}

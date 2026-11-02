@@ -3,15 +3,15 @@ import { Decoration, ViewPlugin } from "@codemirror/view";
 import type { DecorationSet, EditorView, ViewUpdate } from "@codemirror/view";
 
 // The JSON language package ships no theme-aware highlight style we can reach, so tokens get
-// the same syn-* classes (and colors) the rest of the app uses for code.
+// the syn-* utility classes from styles/shared.css instead.
 const TOKEN = /("(?:\\.|[^"\\\n])*")(\s*:)?|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)|\b(true|false|null)\b|([{}[\],:])/g;
 
 const mark = (cls: string) => Decoration.mark({ class: cls });
-const KEY = mark("syn-key");
-const STR = mark("syn-str");
-const NUM = mark("syn-num");
-const LIT = mark("syn-lit");
-const PUNC = mark("syn-punc");
+const KEY = mark("slagen:syn-key");
+const STR = mark("slagen:syn-str");
+const NUM = mark("slagen:syn-num");
+const LIT = mark("slagen:syn-lit");
+const PUNC = mark("slagen:syn-punc");
 
 function build(view: EditorView): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();

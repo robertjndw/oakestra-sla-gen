@@ -3,17 +3,17 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "cn"
 
 const alertVariants = cva(
-  "group/alert relative grid w-full gap-0.5 rounded-lg border px-4 py-3 text-left text-sm has-data-[slot=alert-action]:relative has-data-[slot=alert-action]:pr-18 has-[>svg]:grid-cols-[auto_1fr] has-[>svg]:gap-x-2.5 *:[svg]:row-span-2 *:[svg]:translate-y-0.5 *:[svg]:text-current *:[svg:not([class*='size-'])]:size-4",
+  "slagen:group/alert slagen:relative slagen:grid slagen:w-full slagen:gap-0.5 slagen:rounded-lg slagen:border slagen:px-4 slagen:py-3 slagen:text-left slagen:text-sm slagen:has-data-[slot=alert-action]:relative slagen:has-data-[slot=alert-action]:pr-18 slagen:has-[>svg]:grid-cols-[auto_1fr] slagen:has-[>svg]:gap-x-2.5 slagen:*:[svg]:row-span-2 slagen:*:[svg]:translate-y-0.5 slagen:*:[svg]:text-current slagen:*:[svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
-        default: "bg-card text-card-foreground",
+        default: "slagen:bg-card slagen:text-card-foreground",
         destructive:
-          "bg-card text-destructive *:data-[slot=alert-description]:text-destructive/90 *:[svg]:text-current",
+          "slagen:bg-card slagen:text-destructive slagen:*:data-[slot=alert-description]:text-destructive/90 slagen:*:[svg]:text-current",
         warning:
-          "border-transparent bg-amber-soft text-foreground *:data-[slot=alert-description]:text-foreground/80 *:[svg]:text-amber",
+          "slagen:border-transparent slagen:bg-amber-soft slagen:text-foreground slagen:*:data-[slot=alert-description]:text-foreground/80 slagen:*:[svg]:text-amber",
         danger:
-          "border-transparent bg-rust-soft text-rust *:data-[slot=alert-description]:text-rust/90 *:[svg]:text-current",
+          "slagen:border-transparent slagen:bg-rust-soft slagen:text-rust slagen:*:data-[slot=alert-description]:text-rust/90 slagen:*:[svg]:text-current",
       },
     },
     defaultVariants: {
@@ -42,7 +42,7 @@ function AlertTitle({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="alert-title"
       className={cn(
-        "font-medium group-has-[>svg]/alert:col-start-2 [&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-foreground",
+        "slagen:font-medium slagen:group-has-[>svg]/alert:col-start-2 slagen:[&_a]:underline slagen:[&_a]:underline-offset-3 slagen:[&_a]:hover:text-foreground",
         className
       )}
       {...props}
@@ -58,7 +58,7 @@ function AlertDescription({
     <div
       data-slot="alert-description"
       className={cn(
-        "text-sm text-balance text-muted-foreground md:text-pretty [&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-foreground [&_p:not(:last-child)]:mb-4",
+        "slagen:text-sm slagen:text-balance slagen:text-muted-foreground slagen:md:text-pretty slagen:[&_a]:underline slagen:[&_a]:underline-offset-3 slagen:[&_a]:hover:text-foreground slagen:[&_p:not(:last-child)]:mb-4",
         className
       )}
       {...props}
@@ -70,7 +70,7 @@ function AlertAction({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="alert-action"
-      className={cn("absolute top-2.5 right-3", className)}
+      className={cn("slagen:absolute slagen:top-2.5 slagen:right-3", className)}
       {...props}
     />
   )

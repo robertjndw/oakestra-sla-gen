@@ -16,7 +16,6 @@ import type { ProblemItem } from "./problems";
 import { toDiagnostics } from "./problems";
 import { jsonTokenColors } from "./syntax-plugin";
 import { useIsDark } from "@/hooks/use-is-dark";
-import "./output.css";
 
 interface Props {
   text: string;
@@ -46,7 +45,9 @@ function editorTheme(dark: boolean) {
         fontSize: "12.5px",
       },
       ".cm-scroller": {
-        fontFamily: "var(--font-mono)",
+        // The wrapper below sets this from the theme. var(--font-mono) would miss: the prefix
+        // renames theme variables, and in the dashboard the font comes from the shell's theme.
+        fontFamily: "var(--sla-code-font)",
         lineHeight: "1.6",
       },
       ".cm-content": { caretColor: "var(--foreground)" },
@@ -79,14 +80,14 @@ function editorTheme(dark: boolean) {
         background: "color-mix(in oklab, var(--primary) 24%, transparent)",
       },
       ".cm-deletedChunk": {
-        backgroundColor: "var(--rust-soft)",
+        backgroundColor: "var(--sla-rust-soft)",
         color: "var(--foreground)",
       },
       "& .cm-deletedChunk .cm-deletedText, &.cm-merge-b .cm-deletedText": {
-        background: "color-mix(in oklab, var(--rust) 24%, transparent)",
+        background: "color-mix(in oklab, var(--sla-rust) 24%, transparent)",
       },
       "&.cm-merge-b .cm-changedLineGutter": { background: "var(--primary)" },
-      "& .cm-deletedLineGutter": { background: "var(--rust)" },
+      "& .cm-deletedLineGutter": { background: "var(--sla-rust)" },
     },
     { dark },
   );
@@ -180,13 +181,13 @@ export default function CodeView({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="relative min-h-80 flex-1">
-        <div className="absolute inset-0">
+    <div className="slagen:flex slagen:min-h-0 slagen:flex-1 slagen:flex-col">
+      <div className="slagen:relative slagen:min-h-80 slagen:flex-1">
+        <div className="slagen:absolute slagen:inset-0 slagen:[--sla-code-font:--theme(--font-mono)]">
           <CodeMirror
             value={text}
             height="100%"
-            className="h-full"
+            className="slagen:h-full"
             theme={theme}
             extensions={extensions}
             readOnly={readOnly || original !== null}
@@ -197,15 +198,15 @@ export default function CodeView({
           />
         </div>
       </div>
-      <div className="flex min-h-12 shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t px-4 py-2">
-        <p className="text-sm text-muted-foreground" aria-live="polite">
+      <div className="slagen:flex slagen:min-h-12 slagen:shrink-0 slagen:flex-wrap slagen:items-center slagen:justify-between slagen:gap-x-4 slagen:gap-y-2 slagen:border-t slagen:px-4 slagen:py-2">
+        <p className="slagen:text-sm slagen:text-muted-foreground" aria-live="polite">
           {diff && original !== null ? diffStatus(diff, changes, readOnly) : status}
         </p>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="slagen:flex slagen:flex-wrap slagen:items-center slagen:gap-3">
           {original !== null && changes > 0 && (
             // The editor keeps its scroll position but not focus, so these work from the keyboard
             // without pulling focus into a read-only document.
-            <div role="group" aria-label="Changes" className="flex items-center">
+            <div role="group" aria-label="Changes" className="slagen:flex slagen:items-center">
               <Button
                 type="button"
                 variant="ghost"
@@ -229,9 +230,9 @@ export default function CodeView({
             </div>
           )}
           {diff && (
-            <div className="flex items-center gap-2">
+            <div className="slagen:flex slagen:items-center slagen:gap-2">
               <Switch id={switchId} size="sm" checked={showDiff} onCheckedChange={onShowDiffChange} />
-              <Label htmlFor={switchId} className="font-normal">
+              <Label htmlFor={switchId} className="slagen:font-normal">
                 Show changes
               </Label>
             </div>

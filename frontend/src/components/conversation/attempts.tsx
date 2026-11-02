@@ -8,30 +8,30 @@ import { cn } from "@/lib/utils";
 export function Attempts({ attempts }: { attempts: Attempt[] }) {
   if (attempts.length < 2) return null;
   return (
-    <Collapsible className="w-full">
-      <CollapsibleTrigger className="group/attempts flex w-full items-center gap-2 rounded-sm text-muted-foreground text-sm transition-colors outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50">
-        <ListChecksIcon className="size-4" aria-hidden />
-        <span className="flex-1 text-left">{`Show all ${attempts.length} attempts`}</span>
+    <Collapsible className="slagen:w-full">
+      <CollapsibleTrigger className="slagen:group/attempts slagen:flex slagen:w-full slagen:items-center slagen:gap-2 slagen:rounded-sm slagen:text-muted-foreground slagen:text-sm slagen:transition-colors slagen:outline-none slagen:hover:text-foreground slagen:focus-visible:ring-[3px] slagen:focus-visible:ring-ring/50">
+        <ListChecksIcon className="slagen:size-4" aria-hidden />
+        <span className="slagen:flex-1 slagen:text-left">{`Show all ${attempts.length} attempts`}</span>
         <ChevronDownIcon
-          className="size-4 transition-transform group-data-[state=open]/attempts:rotate-180"
+          className="slagen:size-4 slagen:transition-transform slagen:group-data-[state=open]/attempts:rotate-180"
           aria-hidden
         />
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <ol className="mt-3 flex flex-col gap-3">
+        <ol className="slagen:mt-3 slagen:flex slagen:flex-col slagen:gap-3">
           {attempts.map((a, i) => {
             const passed = !a.errors?.length;
             const Icon = passed ? CheckCircle2Icon : XCircleIcon;
             return (
-              <li key={a.attempt ?? i} className="flex gap-2 text-sm">
-                <Icon className={cn("mt-0.5 size-4 shrink-0", passed ? "text-primary" : "text-rust")} aria-hidden />
-                <div className="min-w-0 flex-1 space-y-1">
-                  <div className="font-medium">{`Attempt ${a.attempt ?? i + 1}`}</div>
-                  <div className={cn("text-xs", passed ? "text-muted-foreground" : "text-rust")}>
+              <li key={a.attempt ?? i} className="slagen:flex slagen:gap-2 slagen:text-sm">
+                <Icon className={cn("slagen:mt-0.5 slagen:size-4 slagen:shrink-0", passed ? "slagen:text-primary" : "slagen:text-rust")} aria-hidden />
+                <div className="slagen:min-w-0 slagen:flex-1 slagen:space-y-1">
+                  <div className="slagen:font-medium">{`Attempt ${a.attempt ?? i + 1}`}</div>
+                  <div className={cn("slagen:text-xs", passed ? "slagen:text-muted-foreground" : "slagen:text-rust")}>
                     {passed ? "Passed validation" : `Rejected with ${plural(a.errors.length, "problem")}`}
                   </div>
                   {!passed && (
-                    <ul className="list-disc space-y-0.5 pl-4 text-muted-foreground text-xs">
+                    <ul className="slagen:list-disc slagen:space-y-0.5 slagen:pl-4 slagen:text-muted-foreground slagen:text-xs">
                       {a.errors.map((e, j) => (
                         <li key={j}>{e}</li>
                       ))}

@@ -4,6 +4,7 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useSessionContext } from "@/hooks/session-context";
+import { useHost } from "@/host/host-context";
 import { clearHistory, removeFromHistory, useHistoryEntries } from "@/hooks/use-history";
 import { copySla, downloadSla } from "@/lib/file-actions";
 import { plural } from "@/lib/format";
@@ -33,7 +34,9 @@ function metaLine(entry: HistoryEntry, current: boolean): string {
 }
 
 export function HistoryPopover() {
-  const entries = useHistoryEntries();
+  const { notify, storageKey } = useHost();
+  const historyKey = storageKey("history");
+  const entries = useHistoryEntries(historyKey);
   const { state, hasUnacceptedWork, openFromHistory } = useSessionContext();
   const [open, setOpen] = useState(false);
   const [confirmEntry, setConfirmEntry] = useState<HistoryEntry | null>(null);
@@ -56,14 +59,14 @@ export function HistoryPopover() {
     <>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <Button variant="ghost" size="sm" className="gap-1.5" aria-label="History">
-            <HistoryIcon className="size-3.5 text-muted-foreground" aria-hidden />
-            <span className="hidden sm:inline">History</span>
+          <Button variant="ghost" size="sm" className="slagen:gap-1.5" aria-label="History">
+            <HistoryIcon className="slagen:size-3.5 slagen:text-muted-foreground" aria-hidden />
+            <span className="slagen:hidden slagen:sm:inline">History</span>
           </Button>
         </PopoverTrigger>
-        <PopoverContent align="end" className="w-[min(26rem,calc(100vw-2rem))] gap-2 p-2">
-          <div className="flex items-center justify-between gap-2 px-2 pt-1">
-            <h2 className="font-medium">History</h2>
+        <PopoverContent align="end" className="slagen:w-[min(26rem,calc(100vw-2rem))] slagen:gap-2 slagen:p-2">
+          <div className="slagen:flex slagen:items-center slagen:justify-between slagen:gap-2 slagen:px-2 slagen:pt-1">
+            <h2 className="slagen:font-medium">History</h2>
             {entries.length > 0 && (
               <Button type="button" variant="ghost" size="xs" onClick={() => setConfirmClear(true)}>
                 Clear all
@@ -71,28 +74,28 @@ export function HistoryPopover() {
             )}
           </div>
           {entries.length === 0 ? (
-            <p className="px-2 pb-2 text-muted-foreground">
+            <p className="slagen:px-2 slagen:pb-2 slagen:text-muted-foreground">
               No saved SLAs yet. The latest draft of every session is kept here.
             </p>
           ) : (
-            <ul aria-label="Saved SLAs" className="-mx-0.5 flex max-h-80 flex-col overflow-y-auto px-0.5">
+            <ul aria-label="Saved SLAs" className="slagen:-mx-0.5 slagen:flex slagen:max-h-80 slagen:flex-col slagen:overflow-y-auto slagen:px-0.5">
               {rows.map(({ entry, meta }) => (
-                <li key={entry.id} className="flex items-center gap-1 rounded-md hover:bg-muted">
+                <li key={entry.id} className="slagen:flex slagen:items-center slagen:gap-1 slagen:rounded-md slagen:hover:bg-muted">
                   <button
                     type="button"
-                    className="min-w-0 flex-1 rounded-md px-2 py-1.5 text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                    className="slagen:min-w-0 slagen:flex-1 slagen:rounded-md slagen:px-2 slagen:py-1.5 slagen:text-left slagen:focus-visible:ring-2 slagen:focus-visible:ring-ring slagen:focus-visible:outline-none"
                     onClick={() => pick(entry)}
                   >
-                    <span className="block truncate font-medium">{entry.title}</span>
-                    <span className="block truncate text-xs text-muted-foreground">{meta}</span>
+                    <span className="slagen:block slagen:truncate slagen:font-medium">{entry.title}</span>
+                    <span className="slagen:block slagen:truncate slagen:text-xs slagen:text-muted-foreground">{meta}</span>
                   </button>
-                  <div className="flex shrink-0 items-center pr-1">
+                  <div className="slagen:flex slagen:shrink-0 slagen:items-center slagen:pr-1">
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon-sm"
                       aria-label={`Copy ${entry.title}`}
-                      onClick={() => void copySla(entry.sla)}
+                      onClick={() => void copySla(entry.sla, notify)}
                     >
                       <CopyIcon />
                     </Button>
@@ -112,7 +115,7 @@ export function HistoryPopover() {
                         variant="ghost"
                         size="icon-sm"
                         aria-label={`Delete ${entry.title}`}
-                        onClick={() => removeFromHistory(entry.id)}
+                        onClick={() => removeFromHistory(entry.id, historyKey)}
                       >
                         <Trash2Icon />
                       </Button>
@@ -122,7 +125,7 @@ export function HistoryPopover() {
               ))}
             </ul>
           )}
-          <p className="border-t px-2 pt-2 pb-1 text-xs text-muted-foreground">
+          <p className="slagen:border-t slagen:px-2 slagen:pt-2 slagen:pb-1 slagen:text-xs slagen:text-muted-foreground">
             Saved in this browser only, including any secrets in the SLAs.
           </p>
         </PopoverContent>
@@ -147,7 +150,7 @@ export function HistoryPopover() {
         title="Clear the history?"
         description={`This deletes ${plural(entries.length, "saved SLA")} from this browser. It can't be undone.`}
         actionLabel="Clear"
-        onConfirm={clearHistory}
+        onConfirm={() => clearHistory(historyKey)}
       />
     </>
   );

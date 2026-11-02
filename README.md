@@ -36,6 +36,8 @@ uv run oakestra-sla-gen "a single nginx web server on port 80 with 1 cpu and 512
 - **Any OpenAI-compatible LLM** - works with local models via LM Studio as well as hosted APIs.
 - **CLI, HTTP API or Oakestra addon** - use it from a terminal or a script, or deploy it next
   to your root orchestrator.
+- **Dashboard UI addon** - the playground also runs inside the Oakestra dashboard, where it can
+  deploy a generated SLA as a new application or add generated services to an existing one.
 
 ## Contents
 
@@ -308,15 +310,24 @@ reload. The UI follows the system's light or dark mode.
 
 | Endpoint | Description |
 |---|---|
-| `POST /playground/sessions` | Start a session. Same fields as `POST /generate`, plus `check_images` and `turn_id`. Returns `{session_id, sla, questions, attempts}`. |
-| `POST /playground/sessions/{id}/answer` | Continue a session with `{text, turn_id}`. Returns the same shape. `409` while a turn is still running. |
-| `GET /playground/turns/{turn_id}` | Progress of a running turn: `{attempts}` so far. `404` before the turn's request arrives and once it has finished. |
+| `POST /playground/sessions` | Start a session. Same fields as `POST /generate`, plus `check_images` and `turn_id`. Returns `{session_id, sla, questions, attempts}`, or `202` with `{session_id, turn_id}` when sent with `Prefer: respond-async`. |
+| `POST /playground/sessions/{id}/answer` | Continue a session with `{text, turn_id}`. Returns the same shape, also with `Prefer: respond-async`. `409` while a turn is still running. |
+| `GET /playground/turns/{turn_id}` | Progress of a running turn: `{attempts}` so far (`{attempts, done: false}` for async turns). Async turns that finished return `{attempts, done: true, status, result}`, where `result` is the body the blocking request would have returned. `404` before the turn's request arrives, once a blocking turn has finished, and 15 minutes after an async turn finished. |
 | `DELETE /playground/sessions/{id}` | Drop a session. |
 | `GET /playground/info` | Returns `{model}`, shown in the UI header. |
 
 `turn_id` is optional. It's a random id the client picks, 8 to 64 letters, digits, `-` or `_`,
 and lets the UI poll the attempts of a turn while its request is still open. Anyone who knows
 it can read the turn's errors, so don't reuse a guessable one.
+
+Behind a proxy with a short read timeout (the Oakestra dashboard's nginx allows 60 seconds),
+a turn can outlast the request. Send `Prefer: respond-async` on either POST route and the
+server answers right away with `202`, `Preference-Applied: respond-async` and
+`{session_id, turn_id}` (a random `turn_id` is generated if you didn't send one), then runs the
+turn in the background. Poll `GET /playground/turns/{turn_id}` until `done` is `true`; `status`
+is the HTTP status the blocking request would have had (`200`, `422`, `502` or `500`). Errors
+found before the turn starts (invalid body, unknown session, `409`) are still returned
+directly.
 
 Sessions live only in the server process's memory. They don't survive a restart and aren't
 shared across worker processes. At most 32 are kept, each for up to an hour of inactivity,
@@ -336,9 +347,10 @@ docker compose up --build              # API on :8000, playground on http://loca
 PORT=9000 FRONTEND_PORT=9080 docker compose up --build    # if the ports are taken on the host
 ```
 
-Prebuilt images for amd64 and arm64 are published to `ghcr.io/robertjndw/oakestra-sla-gen` and
-`ghcr.io/robertjndw/oakestra-sla-gen-frontend`: `latest` from `main`, plus a version tag for
-each `v*` git tag.
+Prebuilt images for amd64 and arm64 are published to `ghcr.io/robertjndw/oakestra-sla-gen`,
+`ghcr.io/robertjndw/oakestra-sla-gen-frontend` and, for the
+[dashboard UI addon](#dashboard-ui-addon), `ghcr.io/robertjndw/oakestra-sla-gen-addon-ui`:
+`latest` from `main`, plus a version tag for each `v*` git tag.
 
 The LLM isn't part of the container. By default it talks to LM Studio on the Docker host at
 `http://host.docker.internal:1234/v1`. Set `OPENAI_BASE_URL`, `OPENAI_API_KEY`,
@@ -355,8 +367,16 @@ somewhere else.
 The server can run as an
 [Oakestra addon](https://github.com/oakestra/oakestra/tree/develop/addons_engine): the root
 orchestrator's addons engine runs the container next to the control plane, on the `oakestra`
-Docker network. `oakestra-addon.json` is the marketplace entry for it. It defines two
-services: `sla_gen` (the API, port 8000) and `sla_gen_frontend` (the playground UI, port 8080).
+Docker network. `oakestra-addon.json` is the marketplace entry for it. It defines three
+services: `sla_gen` (the API, port 8000), `sla_gen_frontend` (the standalone playground UI,
+port 8080) and `sla_gen_ui` (the [dashboard UI addon](#dashboard-ui-addon), no host port), plus
+the `ui` block that points the dashboard at `sla_gen_ui`.
+
+> [!IMPORTANT]
+> Today's Oakestra marketplace doesn't know the `ui` block yet and rejects the entry with HTTP
+> 422 (`ui: Unknown field.`). Until it does, remove the `ui` block and the `sla_gen_ui` service
+> from your copy of `oakestra-addon.json` before registering it. The API and the standalone
+> playground work without them.
 
 1. **Check `environment` in `oakestra-addon.json`.** The addons engine starts the container
    with plain `docker run` options and can't add `extra_hosts`, so `host.docker.internal`
@@ -395,6 +415,157 @@ it off 8000 or 8080.
 > [!WARNING]
 > Marketplace entries are stored and shown in plain text. Don't put a real API key in
 > `oakestra-addon.json` on a shared setup.
+
+### Dashboard UI addon
+
+The playground can also run inside the
+[Oakestra dashboard](https://github.com/robertjndw/oakestra-dashboard-v2) as a UI addon. The
+dashboard downloads it at runtime and renders it in its own page, with its theme, sidebar and
+login, so there is no second web app to open.
+
+![The SLA generator page inside the Oakestra dashboard](docs/images/dashboard-addon-page.png)
+
+It adds:
+
+- **An "SLA generator" page** in the sidebar's Addons group, at `/addons/sla-generator`. It is
+  the full playground: conversation, service map, code view, history and settings.
+- **A Deploy button** in the playground's toolbar. Once the current SLA is valid, it creates
+  the application in Oakestra with the dashboard's API and your login, then opens it. The
+  customer ID is always your organization, so the setting for it is hidden here.
+- **A "Generate service" tab** on every application's detail page. It opens the application's
+  current services in the playground, so you can describe what to add, and "Add services"
+  creates only the new ones under that application. Changed or removed services are listed but
+  not applied, because Oakestra can't update services in place yet. "Open full page" continues
+  the same conversation at `/addons/sla-generator/applications/<id>`.
+
+![The Generate service tab on an application's detail page](docs/images/dashboard-addon-tab.png)
+
+<details>
+<summary>How it fits together</summary>
+
+The addon is a [Module Federation](https://module-federation.io) remote built with the
+dashboard's `@oakestra/dashboard-sdk`. It's the same source as the standalone playground in
+`frontend/src`, built a second time by the package in `frontend/addon/`. The dashboard shares
+React, React Router, TanStack Query and its UI library with the addon, and passes it the
+current user, the Oakestra API client and its toasts. Everything else, like the theme
+switching, comes from the dashboard's page itself.
+
+The addon UI ships as its own image, `oakestra-sla-gen-addon-ui`: nginx on port 80 serving the
+build. The dashboard finds it by container name, `addonui-sla-generator`, and proxies
+`/addon-assets/sla-generator/*` to it. The addon's nginx in turn proxies
+`/addon-assets/sla-generator/api/*` to the sla-gen API (`API_UPSTREAM`, default
+`http://root_sla_gen:8000`), so the browser only talks to the dashboard's origin.
+
+The dashboard's proxy gives up on a request after 60 seconds, but an LLM turn can take minutes,
+so the playground starts its turns with `Prefer: respond-async` and polls for the result (see
+[Playground](#playground)).
+
+</details>
+
+#### Deploying it
+
+1. **Deploy the API** as described in [Oakestra addon](#oakestra-addon). The `sla_gen_ui`
+   service in `oakestra-addon.json` runs the addon image next to it, and the `ui` block tells
+   the dashboard to load it:
+
+   ```json
+   "ui": { "service": "sla_gen_ui", "sdk": "^0.1.0" }
+   ```
+
+   `sdk` is the range of dashboard SDK versions the addon was built against. A dashboard
+   outside that range shows the addon as not compatible instead of loading it.
+2. **Put the addon container where the dashboard can reach it.** It must be named
+   `addonui-sla-generator` and be on a Docker network the dashboard container is on, and it must
+   reach the API container through `API_UPSTREAM`.
+
+> [!IMPORTANT]
+> The Oakestra addons engine doesn't support UI addons yet. The marketplace rejects the `ui`
+> block, the addons manager has no `/ui-addons` list for the dashboard to poll, and nothing
+> names the container `addonui-<name>`. For now, run the addon with the dashboard's development
+> stack below, whose mock addons manager already does all of this.
+
+> [!WARNING]
+> `/addon-assets/` is public on the dashboard, so the sla-gen API behind it can be reached
+> without logging in to the dashboard, the same as the standalone playground. The dashboard
+> doesn't hand an addon the user's token to forward. If you don't want anyone who can reach the
+> dashboard to use your LLM, restrict access to the dashboard at the network level.
+
+#### Trying it with the dashboard's dev stack
+
+Check out the dashboard next to this repository, at the commit in
+[`frontend/addon/DASHBOARD_REF`](frontend/addon/DASHBOARD_REF):
+
+```text
+Oakestra/
+├── oakestra-dashboard-v2/
+└── oakestra-sla-gen/
+```
+
+`frontend/addon/compose.dashboard.yml` adds the addon UI and the sla-gen API to the dashboard's
+`docker-compose.dev.yml`. That stack runs the real dashboard image against a mock system-manager
+and a mock addons manager. From the dashboard checkout:
+
+```sh
+docker compose -f docker-compose.dev.yml \
+  -f ../oakestra-sla-gen/frontend/addon/compose.dashboard.yml up --build -d
+
+# Tell the mock addons manager the addon is installed and enabled
+curl -X PUT http://localhost:11101/__test/addons/sla-generator \
+  -H 'content-type: application/json' \
+  -d '{"enabled": true, "version": "0.1.0", "sdk": "^0.1.0"}'
+```
+
+Open <http://localhost:8080>, log in as `Admin` / `Admin` and pick **SLA generator** in the
+sidebar. The API uses the same LLM settings as [Docker](#docker) (`OPENAI_BASE_URL` and the
+rest, LM Studio on the host by default). Port 8080 is the same one this repository's own
+`compose.yaml` uses, so stop that first. `docker compose ... down` with the same files stops
+everything again.
+
+#### Developing the addon
+
+The addon builds against the dashboard's packages straight from the sibling checkout, because
+`@oakestra/dashboard-sdk` and `@oakestra/ui` aren't on npm yet. Install the dashboard once,
+then the frontend, then the addon (the addon takes React from `frontend/node_modules`):
+
+```sh
+pnpm --dir ../oakestra-dashboard-v2 install \
+  --filter "@oakestra/dashboard-sdk..." --filter "@oakestra/ui..."
+pnpm --dir frontend install
+pnpm --dir frontend/addon install
+```
+
+For a fast loop, run the API, the addon's dev server and the dashboard's dev server against its
+in-browser mock API:
+
+```sh
+uv run oakestra-sla-gen serve                # API on http://127.0.0.1:8000
+pnpm --dir frontend/addon dev                # addon on http://localhost:5180
+pnpm --dir ../oakestra-dashboard-v2 dev:mock # dashboard on http://localhost:5173
+```
+
+Then open
+<http://localhost:5173/?addon-override=sla-generator=http://localhost:5180/mf-manifest.json> and
+log in as `Admin` / `Admin`. The override only works in the dashboard's development build. The
+addon's dev server proxies `/api` to the API itself. Both dev servers want port 5173, so don't
+run the standalone playground's `pnpm --dir frontend dev` at the same time.
+
+The Vite dev proxy has no timeout, so this loop never hits the dashboard's 60-second limit.
+Check long turns in the dev stack above.
+
+Other scripts in `frontend/addon/`: `build`, `typecheck` and `test`. `build` fails if the
+emitted CSS has a class without the addon's prefix (see [Frontend](#frontend)).
+
+To build the image yourself, pass the dashboard checkout as a second build context:
+
+```sh
+docker buildx build --build-context dashboard=../oakestra-dashboard-v2 \
+  -f frontend/addon/Dockerfile -t oakestra-sla-gen-addon-ui frontend
+```
+
+When you move to a newer dashboard, update `frontend/addon/DASHBOARD_REF`; CI checks out the
+dashboard at that commit. The dashboard takes the addon's version from the addons manager's
+list (the `version` in the mock's `/__test` call above), not from the build. Change it when you
+ship new addon code, so open dashboards offer a reload.
 
 ## How it works
 
@@ -455,5 +626,24 @@ In production it runs as an nginx container on port 8080 that serves the build a
 `/api/*` to the API with the prefix stripped. The upstream is set at runtime with
 `API_UPSTREAM`, so the browser only ever talks to one origin.
 
+Every Tailwind class carries the prefix `slagen:` (`slagen:flex slagen:hover:bg-muted`),
+because the same components also run inside the dashboard as the
+[UI addon](#dashboard-ui-addon). There an unprefixed class could restyle the dashboard's own
+markup, and the addon build refuses CSS with one. `cn()` and `components.json` know the prefix,
+so `shadcn add` and class merging work as usual. A few related rules:
+
+- Don't write global CSS. Define a class with `@utility` in `src/styles/shared.css` and use
+  it with the prefix.
+- Don't import third-party stylesheets into the bundle. React Flow's is injected at runtime by
+  `src/components/output/xyflow-styles.ts` for this reason.
+- Read Tailwind theme variables through `--theme()` rather than `var(--radius-md)`: with a
+  prefix they are named `--slagen-*`.
+
+`pnpm check:classes` lists any class that is missing the prefix. Running
+`node scripts/prefix-classes.mts` without `--check` adds the prefix where it can and reports
+what it left alone.
+
 CI runs all of the checks above (except the `llm` tests) on pull requests and pushes to `main`,
-then builds both images and publishes them from `main` and `v*` tags.
+checks and builds the dashboard addon against the dashboard commit in
+`frontend/addon/DASHBOARD_REF`, then builds the three images and publishes them from `main` and
+`v*` tags.

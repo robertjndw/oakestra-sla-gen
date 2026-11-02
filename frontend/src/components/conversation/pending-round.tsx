@@ -21,12 +21,12 @@ export function PendingRound({ round }: { round: Extract<Round, { kind: "pending
   return (
     <Message>
       <MessageContent>
-        <div role="status" className="flex flex-wrap items-baseline gap-x-2">
-          <span className="shimmer text-muted-foreground">{first ? "Generating the first draft" : "Updating the draft"}</span>
-          <span className="text-muted-foreground text-sm tabular-nums">{`${secs}s`}</span>
+        <div role="status" className="slagen:flex slagen:flex-wrap slagen:items-baseline slagen:gap-x-2">
+          <span className="slagen:shimmer slagen:text-muted-foreground">{first ? "Generating the first draft" : "Updating the draft"}</span>
+          <span className="slagen:text-muted-foreground slagen:text-sm slagen:tabular-nums">{`${secs}s`}</span>
         </div>
         {attempts.length > 0 && (
-          <ol aria-live="polite" className="flex flex-col gap-0.5 text-muted-foreground text-xs">
+          <ol aria-live="polite" className="slagen:flex slagen:flex-col slagen:gap-0.5 slagen:text-muted-foreground slagen:text-xs">
             {attempts.map((a) => (
               <AttemptLine key={a.attempt} attempt={a} />
             ))}
@@ -34,7 +34,7 @@ export function PendingRound({ round }: { round: Extract<Round, { kind: "pending
           </ol>
         )}
         {secs >= SLOW_HINT_AFTER_S && (
-          <p className="text-muted-foreground text-xs">Local models can take a minute or more.</p>
+          <p className="slagen:text-muted-foreground slagen:text-xs">Local models can take a minute or more.</p>
         )}
       </MessageContent>
     </Message>
@@ -47,10 +47,10 @@ function AttemptLine({ attempt }: { attempt: Attempt }) {
   return (
     // One line per attempt keeps the round short; the full list is in the title and, once the
     // turn ends, in the round's own attempt list.
-    <li className="flex min-w-0 gap-1" title={attempt.errors.join("\n")}>
-      <span className="shrink-0 text-rust">{`Attempt ${attempt.attempt} rejected:`}</span>
-      <span className="min-w-0 truncate">{firstError}</span>
-      {rest.length > 0 && <span className="shrink-0">{`(+${rest.length} more)`}</span>}
+    <li className="slagen:flex slagen:min-w-0 slagen:gap-1" title={attempt.errors.join("\n")}>
+      <span className="slagen:shrink-0 slagen:text-rust">{`Attempt ${attempt.attempt} rejected:`}</span>
+      <span className="slagen:min-w-0 slagen:truncate">{firstError}</span>
+      {rest.length > 0 && <span className="slagen:shrink-0">{`(+${rest.length} more)`}</span>}
     </li>
   );
 }

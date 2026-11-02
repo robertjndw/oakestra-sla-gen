@@ -25,7 +25,7 @@ function ResizablePanelGroup({
       id={id}
       defaultLayout={defaultLayout}
       onLayoutChanged={onLayoutChanged}
-      className={cn("min-h-0 flex-1", className)}
+      className={cn("slagen:min-h-0 slagen:flex-1", className)}
       {...props}
     />
   );
@@ -34,7 +34,7 @@ function ResizablePanelGroup({
 // The class lands on the library's inner wrapper, a plain block. A single stretched grid row
 // gives the pane a definite height, so its own scroll area and pinned composer still work.
 function ResizablePanel({ className, ...props }: ComponentProps<typeof Panel>) {
-  return <Panel className={cn("grid grid-rows-[minmax(0,1fr)]", className)} {...props} />;
+  return <Panel className={cn("slagen:grid slagen:grid-rows-[minmax(0,1fr)]", className)} {...props} />;
 }
 
 function ResizableHandle({ className, ...props }: ComponentProps<typeof Separator>) {
@@ -42,10 +42,10 @@ function ResizableHandle({ className, ...props }: ComponentProps<typeof Separato
     <Separator
       className={cn(
         // The 1px line is the divider; the ::after widens the grab area without shifting layout.
-        "relative w-px shrink-0 bg-border transition-colors outline-none",
-        "after:absolute after:inset-y-0 after:left-1/2 after:w-3 after:-translate-x-1/2",
-        "hover:bg-primary data-[separator=active]:bg-primary",
-        "focus-visible:bg-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-0",
+        "slagen:relative slagen:w-px slagen:shrink-0 slagen:bg-border slagen:transition-colors slagen:outline-none",
+        "slagen:after:absolute slagen:after:inset-y-0 slagen:after:left-1/2 slagen:after:w-3 slagen:after:-translate-x-1/2",
+        "slagen:hover:bg-primary slagen:data-[separator=active]:bg-primary",
+        "slagen:focus-visible:bg-primary slagen:focus-visible:ring-2 slagen:focus-visible:ring-ring slagen:focus-visible:ring-offset-0",
         className,
       )}
       {...props}

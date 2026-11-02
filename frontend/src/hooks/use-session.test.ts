@@ -5,13 +5,13 @@ import {
   isEdited,
   selectActiveForm,
   sessionReducer,
-  TURN_POLL_INTERVAL_MS,
   useSessionController,
   type ApiResponse,
   type Round,
   type SessionAction,
   type SessionState,
 } from "./use-session";
+import { TURN_POLL_INTERVAL_MS } from "@/lib/constants";
 import type { Attempt, Sla } from "@/lib/types";
 
 const slaV1: Sla = { applications: [{ application_name: "a", microservices: [{ microservice_name: "web", memory: 512 }] }] };
@@ -390,6 +390,18 @@ describe("progress polling", () => {
     await tick();
     expect(polls).toHaveLength(count);
     expect(result.current.state.rounds.at(-1)?.kind).toBe("draft");
+  });
+
+  it("sends the host's fixed customer ID instead of the setting", async () => {
+    const { result } = renderHook(() =>
+      useSessionController(() => ({ ...initialState(), settings: { ...initialState().settings, customerId: "mine" } }), {
+        fixedCustomerId: "acme",
+      }),
+    );
+    act(() => {
+      void result.current.send("hi");
+    });
+    expect(postBodies[0].customer_id).toBe("acme");
   });
 
   it("keeps polling through a 404 from before the request reached the server", async () => {

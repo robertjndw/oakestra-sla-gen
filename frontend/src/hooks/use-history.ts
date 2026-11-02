@@ -3,59 +3,88 @@ import { HISTORY_SAVE_DEBOUNCE_MS, HISTORY_STORAGE_KEY } from "@/lib/constants";
 import { parseHistory, readRawHistory, titleFrom, upsertEntry, writeHistory, type HistoryEntry } from "@/lib/history";
 import type { SessionState } from "./use-session";
 
+interface HistoryStore {
+  getSnapshot: () => HistoryEntry[];
+  subscribe: (onChange: () => void) => () => void;
+  commit: (next: HistoryEntry[]) => void;
+}
+
+// One store per storage key, so two playgrounds with different keys don't share a cache.
+const stores = new Map<string, HistoryStore>();
+
 // localStorage is the store itself, so other tabs' writes show up too. Reading it means pulling
 // a string of up to a few MB, too much to do on every render of the top bar. So while anyone is
 // subscribed, the parsed list is served from memory and only refreshed by our own commits, other
 // tabs' storage events, and the first subscribe (which catches writes made while nobody listened).
-let lastRaw: string | null | undefined;
-let lastEntries: HistoryEntry[] = [];
-const listeners = new Set<() => void>();
+function createStore(key: string): HistoryStore {
+  let lastRaw: string | null | undefined;
+  let lastEntries: HistoryEntry[] = [];
+  const listeners = new Set<() => void>();
 
-// Memoized on the raw string because useSyncExternalStore needs a stable snapshot.
-function refresh(): HistoryEntry[] {
-  const raw = readRawHistory();
-  if (raw !== lastRaw) {
-    lastRaw = raw;
-    lastEntries = parseHistory(raw);
+  // Memoized on the raw string because useSyncExternalStore needs a stable snapshot.
+  function refresh(): HistoryEntry[] {
+    const raw = readRawHistory(key);
+    if (raw !== lastRaw) {
+      lastRaw = raw;
+      lastEntries = parseHistory(raw);
+    }
+    return lastEntries;
   }
-  return lastEntries;
-}
 
-// Unsubscribed, nothing would tell the cache it went stale, so storage is checked each time.
-const getSnapshot = (): HistoryEntry[] => (listeners.size > 0 ? lastEntries : refresh());
+  // Unsubscribed, nothing would tell the cache it went stale, so storage is checked each time.
+  const getSnapshot = (): HistoryEntry[] => (listeners.size > 0 ? lastEntries : refresh());
 
-function subscribe(onChange: () => void): () => void {
-  // React re-reads the snapshot after subscribing, so a change found here still renders.
-  if (listeners.size === 0) refresh();
-  listeners.add(onChange);
-  const onStorage = (e: StorageEvent) => {
-    if (e.key !== HISTORY_STORAGE_KEY && e.key !== null) return;
+  function subscribe(onChange: () => void): () => void {
+    // React re-reads the snapshot after subscribing, so a change found here still renders.
+    if (listeners.size === 0) refresh();
+    listeners.add(onChange);
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== key && e.key !== null) return;
+      refresh();
+      onChange();
+    };
+    window.addEventListener("storage", onStorage);
+    return () => {
+      listeners.delete(onChange);
+      window.removeEventListener("storage", onStorage);
+    };
+  }
+
+  function commit(next: HistoryEntry[]) {
+    if (next === getSnapshot()) return;
+    writeHistory(next, key);
+    // Read back rather than caching `next`: the write may have dropped entries to fit the quota,
+    // or failed outright.
     refresh();
-    onChange();
-  };
-  window.addEventListener("storage", onStorage);
-  return () => {
-    listeners.delete(onChange);
-    window.removeEventListener("storage", onStorage);
-  };
+    listeners.forEach((l) => l());
+  }
+
+  return { getSnapshot, subscribe, commit };
 }
 
-function commit(next: HistoryEntry[]) {
-  if (next === getSnapshot()) return;
-  writeHistory(next);
-  // Read back rather than caching `next`: the write may have dropped entries to fit the quota,
-  // or failed outright.
-  refresh();
-  listeners.forEach((l) => l());
+function storeFor(key: string): HistoryStore {
+  let store = stores.get(key);
+  if (!store) {
+    store = createStore(key);
+    stores.set(key, store);
+  }
+  return store;
 }
 
-export const saveToHistory = (entry: HistoryEntry) => commit(upsertEntry(getSnapshot(), entry));
-export const removeFromHistory = (id: string) => commit(getSnapshot().filter((e) => e.id !== id));
-export const clearHistory = () => commit([]);
+export const saveToHistory = (entry: HistoryEntry, key: string = HISTORY_STORAGE_KEY) => {
+  const store = storeFor(key);
+  store.commit(upsertEntry(store.getSnapshot(), entry));
+};
+export const removeFromHistory = (id: string, key: string = HISTORY_STORAGE_KEY) => {
+  const store = storeFor(key);
+  store.commit(store.getSnapshot().filter((e) => e.id !== id));
+};
+export const clearHistory = (key: string = HISTORY_STORAGE_KEY) => storeFor(key).commit([]);
 
 /** Newest first. */
-export function useHistoryEntries(): HistoryEntry[] {
-  return useSyncExternalStore(subscribe, getSnapshot);
+export function useHistoryEntries(key: string = HISTORY_STORAGE_KEY): HistoryEntry[] {
+  const store = storeFor(key);
+  return useSyncExternalStore(store.subscribe, store.getSnapshot);
 }
 
 export function sessionTitle(s: SessionState): string {
@@ -88,7 +117,7 @@ export function draftEntry(s: SessionState): DraftEntry | null {
 }
 
 /** Keeps the history entry of the current session up to date with its latest draft. */
-export function useRecordHistory(state: SessionState): void {
+export function useRecordHistory(state: SessionState, key: string = HISTORY_STORAGE_KEY): void {
   const entry = draftEntry(state);
   const id = entry?.id ?? null;
   const title = entry?.title ?? "";
@@ -99,8 +128,8 @@ export function useRecordHistory(state: SessionState): void {
   const flush = useCallback(() => {
     const e = pending.current;
     pending.current = null;
-    if (e) saveToHistory({ ...e, savedAt: Date.now() });
-  }, []);
+    if (e) saveToHistory({ ...e, savedAt: Date.now() }, key);
+  }, [key]);
 
   useEffect(() => {
     // Leaving a session (or breaking the JSON) cancels the timer below, so whatever was
