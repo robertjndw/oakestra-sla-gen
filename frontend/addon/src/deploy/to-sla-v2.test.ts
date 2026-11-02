@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toSlaV2 } from "./to-sla-v2";
+import { creationErrors, toSlaV2 } from "./to-sla-v2";
 
 const service = (overrides: Record<string, unknown> = {}) => ({
   microserviceID: "",
@@ -95,5 +95,27 @@ describe("toSlaV2", () => {
     expect(result.errors).toHaveLength(4);
     expect(result.errors[0]).toContain('"my-shop"');
     expect(result.errors.join("\n")).toContain('"web_1"');
+  });
+
+  it("refuses two applications with the same name and namespace", () => {
+    const app = JSON.parse(doc()).applications[0];
+    const result = toSlaV2(JSON.stringify({ sla_version: "v2.0", applications: [app, app] }), "org-1");
+    expect(result).toEqual({ ok: false, errors: ["The SLA has more than one application default/shop."] });
+  });
+});
+
+describe("creationErrors", () => {
+  const unikernel = (overrides: Record<string, unknown> = {}) =>
+    service({ microservice_name: "uk", virtualization: "unikernel", ...overrides }) as never;
+
+  it("asks for the arch of a unikernel", () => {
+    expect(creationErrors([unikernel()])).toEqual([
+      'Service uk is a unikernel, which needs an arch list such as ["amd64"]. Add it in the Code view.',
+    ]);
+    expect(creationErrors([unikernel({ arch: [] })])).toHaveLength(1);
+  });
+
+  it("accepts containers and unikernels with an arch", () => {
+    expect(creationErrors([service() as never, unikernel({ arch: ["amd64"] })])).toEqual([]);
   });
 });

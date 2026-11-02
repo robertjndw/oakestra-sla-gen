@@ -8,7 +8,7 @@ import type { PlaygroundActionsProps } from "@/host/host-context";
 import { ActionButton } from "../actions/ActionButton";
 import { blockedReason, hasStatus, plural } from "../actions/action-state";
 import type { SlaV2 } from "../types";
-import { toSlaV2 } from "./to-sla-v2";
+import { creationErrors, toSlaV2 } from "./to-sla-v2";
 
 const serviceCount = (sla: SlaV2) => sla.applications.reduce((sum, app) => sum + app.microservices.length, 0);
 
@@ -45,7 +45,9 @@ export function DeployButton({ sla, validation, turnRunning }: PlaygroundActions
     onSuccess: async (created, body) => {
       setOpen(false);
       notify.success(`Deployed ${body.applications[0]?.application_name ?? "the application"}`, {
-        description: `${plural(serviceCount(body), "service")} handed to the scheduler.`,
+        // Creating an application only registers its services; nothing runs until its instances
+        // are deployed, which the application page offers next.
+        description: `${plural(serviceCount(body), "service")} created. Deploy their instances from the application page.`,
       });
       if (created) await navigate(`/applications/${encodeURIComponent(created._id)}`);
     },
@@ -53,6 +55,7 @@ export function DeployButton({ sla, validation, turnRunning }: PlaygroundActions
 
   let reason = blockedReason({ status: validation.status, turnRunning, organization });
   if (!reason && result && !result.ok) reason = result.errors[0] ?? "The SLA can't be deployed.";
+  if (!reason && result?.ok) reason = creationErrors(result.sla.applications.flatMap((app) => app.microservices))[0] ?? null;
 
   const application = confirming?.applications[0];
   const others = (confirming?.applications.length ?? 1) - 1;
@@ -62,15 +65,15 @@ export function DeployButton({ sla, validation, turnRunning }: PlaygroundActions
         <span className="slagen:block">
           Creates <strong>{application.application_name}</strong> in namespace{" "}
           <strong>{application.application_namespace}</strong> with {plural(serviceCount(confirming), "service")}
-          {others > 0 ? `, plus ${plural(others, "more application")}` : ""}. Oakestra schedules the services
-          right away.
+          {others > 0 ? `, plus ${plural(others, "more application")}` : ""}. Their instances start once you deploy
+          them from the application page.
         </span>
         {deploy.isError ? (
           <span role="alert" className="slagen:mt-3 slagen:block slagen:text-destructive">
-            {describeError(deploy.error)}
+            {/* The backend's own 409 message says the same in a sentence without a full stop. */}
             {hasStatus(deploy.error, 409)
-              ? " An application with this name may already exist. Rename it in the SLA, or open the existing application and use its Generate service tab."
-              : null}
+              ? "An application with this name and namespace already exists. Rename it in the SLA, or open the existing application and use its Generate service tab."
+              : describeError(deploy.error)}
           </span>
         ) : null}
       </>

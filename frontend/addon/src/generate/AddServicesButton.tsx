@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import type { PlaygroundActionsProps } from "@/host/host-context";
 import { ActionButton } from "../actions/ActionButton";
 import { blockedReason, plural } from "../actions/action-state";
-import { firstApplicationServices, toSlaV2 } from "../deploy/to-sla-v2";
+import { creationErrors, firstApplicationServices, toSlaV2 } from "../deploy/to-sla-v2";
 import type { Application, SlaApplication, SlaMicroservice } from "../types";
 import { buildServiceSla } from "./build-service-sla";
 import { describeFailures } from "./describe-failures";
@@ -17,13 +17,22 @@ import { generatorKeys } from "./queries";
 const names = (list: readonly string[]) => list.join(", ");
 
 interface Confirmation {
-  plan: AdditionPlan;
+  /** The SLA's services when the dialog opened. The plan is made from them on every render. */
+  generated: SlaMicroservice[];
   slaApplications: SlaApplication[];
 }
 
 /** What adding does, and what of the SLA it leaves out. */
-function ConfirmationText({ confirmation, application }: { confirmation: Confirmation; application: Application }) {
-  const { plan, slaApplications } = confirmation;
+function ConfirmationText({
+  confirmation,
+  plan,
+  application,
+}: {
+  confirmation: Confirmation;
+  plan: AdditionPlan;
+  application: Application;
+}) {
+  const { slaApplications } = confirmation;
   const [first] = slaApplications;
   const renamed =
     first !== undefined &&
@@ -31,14 +40,26 @@ function ConfirmationText({ confirmation, application }: { confirmation: Confirm
       first.application_namespace !== application.application_namespace);
   return (
     <>
-      <span className="slagen:block">
-        Creates {names(plan.toCreate.map((service) => service.microservice_name))} in{" "}
-        <strong>{application.application_name}</strong>. Oakestra schedules them right away.
-      </span>
+      {plan.toCreate.length > 0 ? (
+        <span className="slagen:block">
+          Creates {names(plan.toCreate.map((service) => service.microservice_name))} in{" "}
+          <strong>{application.application_name}</strong>. Deploy their instances from the Services tab afterwards.
+        </span>
+      ) : (
+        <span className="slagen:block">
+          Every service in the SLA runs in <strong>{application.application_name}</strong> now.
+        </span>
+      )}
       {plan.changed.length > 0 ? (
         <span className="slagen:mt-2 slagen:block">
           Not applied, because Oakestra can't update running services yet:{" "}
           {plan.changed.map((change) => `${change.name} (${change.fields.join(", ")})`).join("; ")}.
+        </span>
+      ) : null}
+      {plan.renamed.length > 0 ? (
+        <span className="slagen:mt-2 slagen:block">
+          Not created, because they look like a deployed service under a new name (same image and service IP):{" "}
+          {plan.renamed.map((rename) => `${rename.name} (${rename.deployed})`).join(", ")}.
         </span>
       ) : null}
       {plan.removed.length > 0 ? (
@@ -66,8 +87,8 @@ export function AddServicesButton({ sla, validation, turnRunning }: PlaygroundAc
   const user = useCurrentUser();
   const notify = useNotify();
   const queryClient = useQueryClient();
-  // What the dialog asks about, taken when it opens so a refetch can't change it under the user,
-  // and kept after closing so the dialog doesn't go blank during its exit animation.
+  // The SLA the dialog asks about, taken when it opens so a new draft can't change it under the
+  // user, and kept after closing so the dialog doesn't go blank during its exit animation.
   const [confirming, setConfirming] = useState<Confirmation | null>(null);
   const [open, setOpen] = useState(false);
   const organization = user?.organization;
@@ -92,18 +113,23 @@ export function AddServicesButton({ sla, validation, turnRunning }: PlaygroundAc
       return result;
     },
     meta: { silent: true },
-    onSuccess: async (result) => {
+    onSuccess: (result) => {
       setOpen(false);
       notify.success(`Added ${plural(result.deployed_services.length, "service")} to ${application.application_name}`, {
         description:
-          result.failed_services.length > 0 ? describeFailures(result.failed_services) : "Oakestra schedules them right away.",
+          result.failed_services.length > 0
+            ? describeFailures(result.failed_services)
+            : "Deploy their instances from the Services tab.",
       });
-      await Promise.all([
+    },
+    // On failure too: the backend creates services one by one and keeps the ones before a
+    // failing one. The refetch shrinks the open dialog's plan, so a retry doesn't create them twice.
+    onSettled: () =>
+      Promise.all([
         queryClient.invalidateQueries({ queryKey: generatorKeys.services(application._id) }),
         // The backend appends the new ids to application.microservices.
         queryClient.invalidateQueries({ queryKey: generatorKeys.application(application._id) }),
-      ]);
-    },
+      ]),
   });
 
   const toCreate = plan?.toCreate ?? [];
@@ -113,8 +139,16 @@ export function AddServicesButton({ sla, validation, turnRunning }: PlaygroundAc
     reason = `The SLA names more than one service ${names(plan.duplicates)}. Give each service its own name first.`;
   }
   if (!reason && toCreate.length === 0) reason = `Every service in the SLA already runs in ${application.application_name}.`;
+  if (!reason) reason = creationErrors(toCreate)[0] ?? null;
 
-  const description = confirming ? <ConfirmationText confirmation={confirming} application={application} /> : null;
+  const confirmingPlan = useMemo(
+    () => (confirming ? planAdditions(confirming.generated, services) : null),
+    [confirming, services],
+  );
+  const description =
+    confirming && confirmingPlan ? (
+      <ConfirmationText confirmation={confirming} plan={confirmingPlan} application={application} />
+    ) : null;
 
   return (
     <>
@@ -124,7 +158,7 @@ export function AddServicesButton({ sla, validation, turnRunning }: PlaygroundAc
         onClick={() => {
           if (!plan || !parsed?.ok) return;
           add.reset();
-          setConfirming({ plan, slaApplications: parsed.sla.applications });
+          setConfirming({ generated: firstApplicationServices(parsed.sla), slaApplications: parsed.sla.applications });
           setOpen(true);
         }}
       >
@@ -135,7 +169,7 @@ export function AddServicesButton({ sla, validation, turnRunning }: PlaygroundAc
       <ConfirmDialog
         open={open}
         onOpenChange={setOpen}
-        title={`Add ${plural(confirming?.plan.toCreate.length ?? 0, "service")}?`}
+        title={`Add ${plural(confirmingPlan?.toCreate.length ?? 0, "service")}?`}
         description={
           description && (
             <>
@@ -151,7 +185,10 @@ export function AddServicesButton({ sla, validation, turnRunning }: PlaygroundAc
         confirmLabel="Add services"
         pending={add.isPending}
         onConfirm={() => {
-          if (confirming) add.mutate(confirming.plan.toCreate);
+          if (!confirmingPlan) return;
+          // A failed attempt may have created all of them after all.
+          if (confirmingPlan.toCreate.length === 0) setOpen(false);
+          else add.mutate(confirmingPlan.toCreate);
         }}
       />
     </>

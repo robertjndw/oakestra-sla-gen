@@ -21,7 +21,7 @@ describe("seedFromApplication", () => {
               code: "docker.io/library/nginx:1.27",
               memory: 256,
               vcpus: 1,
-              port: "80",
+              port: "80:80",
               environment: ["MODE=prod"],
               addresses: { rr_ip: "10.30.0.1" },
             },
@@ -46,6 +46,13 @@ describe("seedFromApplication", () => {
       ]),
     );
     expect(doc.applications[0].microservices[0]).toMatchObject({ code: "redis:7", addresses: { rr_ip: "10.30.0.9" } });
+  });
+
+  it("writes what the backend stores the way the generator accepts it", () => {
+    const doc = JSON.parse(
+      seedFromApplication(application(), [deployedService({ virtualization: "docker", port: "80/udp;8080:80" })]),
+    );
+    expect(doc.applications[0].microservices[0]).toMatchObject({ virtualization: "container", port: "80:80/udp;8080:80" });
   });
 
   it("omits the customer and an empty description", () => {

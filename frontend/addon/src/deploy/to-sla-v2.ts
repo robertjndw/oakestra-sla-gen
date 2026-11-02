@@ -73,11 +73,38 @@ export function toSlaV2(text: string, organization: string | null | undefined): 
     };
   });
 
+  // The backend creates the applications one after another and keeps those it already created
+  // when a later one fails, so a second one with the same name would leave a half deployed SLA.
+  const seen = new Set<string>();
+  for (const application of applications) {
+    if (!isRecord(application)) continue;
+    const key = `${String(application.application_namespace)}/${String(application.application_name)}`;
+    if (seen.has(key)) errors.push(`The SLA has more than one application ${key}.`);
+    seen.add(key);
+  }
+
   if (errors.length > 0) return { ok: false, errors };
   return {
     ok: true,
     sla: { ...doc, sla_version: "v2.0", customerID: organization, applications: cleaned } as SlaV2,
   };
+}
+
+/**
+ * Why the backend would fail to create these services, beyond what the SLA schema checks. It
+ * reads `arch` of every unikernel without a fallback, and fails the whole request (after creating
+ * the services before it) when it's missing. The generator never writes `arch`.
+ */
+export function creationErrors(services: readonly SlaMicroservice[]): string[] {
+  return services
+    .filter((service) => {
+      const { virtualization, arch } = service as Record<string, unknown>;
+      return virtualization === "unikernel" && !(Array.isArray(arch) && arch.length > 0);
+    })
+    .map(
+      (service) =>
+        `Service ${service.microservice_name} is a unikernel, which needs an arch list such as ["amd64"]. Add it in the Code view.`,
+    );
 }
 
 /** The microservices of the first application, for callers that only ever deal with one. */

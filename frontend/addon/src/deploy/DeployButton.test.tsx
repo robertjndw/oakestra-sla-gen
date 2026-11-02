@@ -28,6 +28,11 @@ const sla = {
 
 const user = { username: "alice", organization: "org-1", roles: ["Application_Provider"] };
 
+const withService = (overrides: Record<string, unknown>) => ({
+  ...sla,
+  applications: [{ ...sla.applications[0], microservices: [{ ...sla.applications[0]!.microservices[0], ...overrides }] }],
+});
+
 describe("DeployButton", () => {
   it("explains why it is disabled while the SLA is invalid", () => {
     renderInHost(
@@ -38,6 +43,17 @@ describe("DeployButton", () => {
     );
     expect(screen.getByRole("button", { name: /deploy/i }).hasAttribute("disabled")).toBe(true);
     expect(screen.getByLabelText("Fix the problems in the SLA first.")).toBeTruthy();
+  });
+
+  it("is disabled for a unikernel without arch, which the backend can't create", () => {
+    renderInHost(
+      <InToolbar>
+        <DeployButton {...actionProps(withService({ virtualization: "unikernel" }))} />
+      </InToolbar>,
+      { user },
+    );
+    expect(screen.getByRole("button", { name: /deploy/i }).hasAttribute("disabled")).toBe(true);
+    expect(screen.getByLabelText(/web is a unikernel/)).toBeTruthy();
   });
 
   it("is disabled for a session without organization", () => {
@@ -84,6 +100,8 @@ describe("DeployButton", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /deploy/i }));
     fireEvent.click(await screen.findByRole("button", { name: "Deploy" }));
-    expect((await screen.findByRole("alert")).textContent).toContain("Generate service tab");
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "An application with this name and namespace already exists. Rename it in the SLA, or open the existing application and use its Generate service tab.",
+    );
   });
 });

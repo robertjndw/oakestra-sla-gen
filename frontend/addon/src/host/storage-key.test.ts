@@ -3,14 +3,20 @@ import { dashboardStorageKey } from "./storage-key";
 
 describe("dashboardStorageKey", () => {
   it("keeps conversations per scope and everything else per user", () => {
-    const key = dashboardStorageKey("alice", "app-123");
-    expect(key("session")).toBe("oakestra.addon.sla-generator.alice.session.app-123");
-    expect(key("composer")).toBe("oakestra.addon.sla-generator.alice.composer.app-123");
-    expect(key("history")).toBe("oakestra.addon.sla-generator.alice.history");
-    expect(key("settings")).toBe("oakestra.addon.sla-generator.alice.settings");
+    const key = dashboardStorageKey("org-1", "alice", "app-123");
+    expect(key("session")).toBe("oakestra.addon.sla-generator.org-1.alice.session.app-123");
+    expect(key("composer")).toBe("oakestra.addon.sla-generator.org-1.alice.composer.app-123");
+    expect(key("history")).toBe("oakestra.addon.sla-generator.org-1.alice.history");
+    expect(key("settings")).toBe("oakestra.addon.sla-generator.org-1.alice.settings");
+  });
+
+  it("keeps users of the same name in different organizations apart", () => {
+    expect(dashboardStorageKey("org-1", "alice", "page")("history")).not.toBe(
+      dashboardStorageKey("org-2", "alice", "page")("history"),
+    );
   });
 
   it("gives the split an id that is safe in the DOM", () => {
-    expect(dashboardStorageKey("a.b@example.org", "page")("split")).toMatch(/^[a-z0-9-]+$/);
+    expect(dashboardStorageKey("org-1", "a.b@example.org", "page")("split")).toMatch(/^[a-z0-9-]+$/);
   });
 });

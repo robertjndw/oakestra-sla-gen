@@ -28,7 +28,7 @@ export function DashboardHost({ scope, Actions, seed, children }: DashboardHostP
       showBranding: false,
       notify,
       fixedCustomerId: organization,
-      storageKey: dashboardStorageKey(username, scope),
+      storageKey: dashboardStorageKey(organization, username, scope),
       Actions,
       seed,
     }),
@@ -39,7 +39,7 @@ export function DashboardHost({ scope, Actions, seed, children }: DashboardHostP
   // the first render, it has to start over from their keys instead of writing the anonymous
   // state into them.
   return (
-    <HostProvider key={username} host={host}>
+    <HostProvider key={`${organization ?? ""}/${username}`} host={host}>
       {children}
     </HostProvider>
   );
