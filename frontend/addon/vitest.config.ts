@@ -8,9 +8,9 @@ export default mergeConfig(
   viteConfig,
   defineConfig({
     resolve: {
-      // For the modules Vite transforms (ours, ../src, the linked SDK and ui sources): one copy of
-      // each singleton, resolved from here. React falls through to frontend/node_modules, which
-      // test/single-react.ts makes the only copy for everything else as well.
+      // For the modules Vite transforms (ours and ../src): one copy of each singleton, resolved
+      // from here. React falls through to frontend/node_modules, which test/single-react.ts
+      // makes the only copy for everything else as well.
       dedupe: ["react", "react-dom", "react-router", "@tanstack/react-query", "@testing-library/react", "@testing-library/dom"],
     },
     test: {

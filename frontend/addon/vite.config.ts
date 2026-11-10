@@ -5,8 +5,6 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 const sharedSrc = path.resolve(import.meta.dirname, "../src");
-// The SDK and @oakestra/ui are linked from a dashboard checkout next to this repository.
-const dashboardPackages = path.resolve(import.meta.dirname, "../../../oakestra-dashboard-v2/packages");
 
 export default defineConfig({
   plugins: [
@@ -20,8 +18,8 @@ export default defineConfig({
     alias: { "@": sharedSrc },
   },
   server: {
-    // The playground code lives one level up, the SDK and ui sources in the dashboard checkout.
-    fs: { allow: [path.resolve(import.meta.dirname, ".."), dashboardPackages] },
+    // The playground code lives one level up.
+    fs: { allow: [path.resolve(import.meta.dirname, "..")] },
     proxy: {
       // Same contract as the addon container's nginx and the standalone dev server: /api is the
       // generator backend with the prefix stripped.

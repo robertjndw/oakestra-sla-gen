@@ -407,7 +407,7 @@ the `ui` block that points the dashboard at `sla_gen_ui`.
      -H 'content-type: application/json' -d '{"marketplace_id": "<_id>"}'
    ```
 
-The Addons pages of the [Oakestra dashboard](https://github.com/robertjndw/oakestra-dashboard-v2)
+The Addons pages of the [Oakestra dashboard](https://github.com/oakestra/dashboard-v2)
 can do the same (register, install, disable and remove), as can the older addons dashboard on
 port 11103. The addons monitor polls every 30 seconds
 by default, after which the API is at `http://<root-orchestrator>:8000` and the playground at
@@ -424,7 +424,7 @@ it off 8000 or 8080.
 ### Dashboard UI addon
 
 The playground can also run inside the
-[Oakestra dashboard](https://github.com/robertjndw/oakestra-dashboard-v2) as a UI addon. The
+[Oakestra dashboard](https://github.com/oakestra/dashboard-v2) as a UI addon. The
 dashboard downloads it at runtime and renders it in its own page, with its theme, sidebar and
 login, so there is no second web app to open.
 
@@ -495,12 +495,13 @@ so the playground starts its turns with `Prefer: respond-async` and polls for th
 
 > [!IMPORTANT]
 > This needs an addons engine with UI addon support and the new
-> [Oakestra dashboard](https://github.com/robertjndw/oakestra-dashboard-v2) as the root
-> orchestrator's `dashboard` service. The older Angular dashboard image has no `/ui-addons` or
-> `/addon-assets/` proxy, and an older addons engine rejects the `ui` block. Addon UIs also
-> don't load with `override-network-host.yml`, since the dashboard has no Docker DNS there to
-> resolve `addonui-<name>`. Without those, run the addon with the dashboard's development stack
-> below, whose mock addons manager does the same job.
+> [Oakestra dashboard](https://github.com/oakestra/dashboard-v2)
+> (`ghcr.io/oakestra/dashboard-v2`) as the root orchestrator's `dashboard` service. The older
+> Angular dashboard image has no `/ui-addons` or `/addon-assets/` proxy, and an older addons
+> engine rejects the `ui` block. Addon UIs also don't load with `override-network-host.yml`,
+> since the dashboard has no Docker DNS there to resolve `addonui-<name>`. Without those, run the
+> addon with the dashboard's development stack below, whose mock addons manager does the same
+> job.
 >
 > `/ui-addons` only lists `active` addons. If `sla_gen` or `sla_gen_frontend` fails to start,
 > for example because host port 8000 or 8080 is taken, the addon is only partially active and
@@ -514,26 +515,28 @@ so the playground starts its turns with `Prefer: respond-async` and polls for th
 
 #### Trying it with the dashboard's dev stack
 
-Check out the dashboard next to this repository, at the commit in
-[`frontend/addon/DASHBOARD_REF`](frontend/addon/DASHBOARD_REF):
+You need a checkout of [the dashboard](https://github.com/oakestra/dashboard-v2) for its
+development stack, and a GitHub Packages token for the addon build (see
+[Developing the addon](#developing-the-addon)). The commands below assume the dashboard sits next
+to this repository:
 
 ```text
 Oakestra/
-├── oakestra-dashboard-v2/
+├── dashboard-v2/
 └── oakestra-sla-gen/
 ```
 
-The dashboard's `docker-compose.dev.yml` runs the real dashboard image against a mock
+The dashboard's `compose.dev.yml` runs the real dashboard image against a mock
 system-manager and a mock addons manager. The mock doesn't start addon containers, so
 `frontend/addon/compose.dashboard.yml` starts the addon UI and the sla-gen API on the
 dashboard's network. Start the dashboard first:
 
 ```sh
 # From the dashboard checkout
-docker compose -f docker-compose.dev.yml up --build -d
+docker compose -f compose.dev.yml up --build -d
 
 # From this repository
-docker compose -f frontend/addon/compose.dashboard.yml up --build -d
+NODE_AUTH_TOKEN=$(gh auth token) docker compose -f frontend/addon/compose.dashboard.yml up --build -d
 
 # Tell the mock addons manager the addon is installed and enabled
 curl -X PUT http://localhost:11101/__test/addons/sla-generator \
@@ -543,9 +546,8 @@ curl -X PUT http://localhost:11101/__test/addons/sla-generator \
 
 Open <http://localhost:8080>, log in as `Admin` / `Admin` and pick **SLA generator** in the
 sidebar. The API uses the same LLM settings as [Docker](#docker) (`OPENAI_BASE_URL` and the
-rest, LM Studio on the host by default). If the dashboard isn't checked out next to this
-repository, set `DASHBOARD_DIR` to its path, relative to `frontend/addon/`. Port 8080 is the
-same one this repository's own `compose.yaml` uses, so stop that first.
+rest, LM Studio on the host by default). Port 8080 is the same one this repository's own
+`compose.yaml` uses, so stop that first.
 
 Stop the addon before the dashboard, otherwise the dashboard's `down` can't remove its network.
 
@@ -554,13 +556,19 @@ addon containers aren't running and nginx returned a 502 page instead.
 
 #### Developing the addon
 
-The addon builds against the dashboard's packages straight from the sibling checkout, because
-`@oakestra/dashboard-sdk` and `@oakestra/ui` aren't on npm yet. Install the dashboard once,
-then the frontend, then the addon (the addon takes React from `frontend/node_modules`):
+The addon depends on `@oakestra/dashboard-sdk` and `@oakestra/ui`, which are published to
+GitHub Packages, not npmjs. `frontend/addon/.npmrc` points the `@oakestra` scope there, but
+GitHub Packages wants a token even for public packages, and pnpm ignores tokens in a repository's
+`.npmrc`. Add a token with `read:packages` to your global pnpm config once, for example the
+one from `gh`:
 
 ```sh
-pnpm --dir ../oakestra-dashboard-v2 install \
-  --filter "@oakestra/dashboard-sdk..." --filter "@oakestra/ui..."
+pnpm config set --global //npm.pkg.github.com/:_authToken "$(gh auth token)"
+```
+
+Then install the frontend, then the addon (the addon takes React from `frontend/node_modules`):
+
+```sh
 pnpm --dir frontend install
 pnpm --dir frontend/addon install
 ```
@@ -569,9 +577,9 @@ For a fast loop, run the API, the addon's dev server and the dashboard's dev ser
 in-browser mock API:
 
 ```sh
-uv run oakestra-sla-gen serve                # API on http://127.0.0.1:8000
-pnpm --dir frontend/addon dev                # addon on http://localhost:5180
-pnpm --dir ../oakestra-dashboard-v2 dev:mock # dashboard on http://localhost:5173
+uv run oakestra-sla-gen serve       # API on http://127.0.0.1:8000
+pnpm --dir frontend/addon dev       # addon on http://localhost:5180
+pnpm --dir ../dashboard-v2 dev:mock # dashboard on http://localhost:5173
 ```
 
 Then open
@@ -586,16 +594,20 @@ Check long turns in the dev stack above.
 Other scripts in `frontend/addon/`: `build`, `typecheck` and `test`. `build` fails if the
 emitted CSS has a class without the addon's prefix (see [Frontend](#frontend)).
 
-To build the image yourself, pass the dashboard checkout as a second build context:
+To build the image yourself, pass the token in as a build secret:
 
 ```sh
-docker buildx build --build-context dashboard=../oakestra-dashboard-v2 \
+NODE_AUTH_TOKEN=$(gh auth token) docker buildx build \
+  --secret id=node_auth_token,env=NODE_AUTH_TOKEN \
   -f frontend/addon/Dockerfile -t oakestra-sla-gen-addon-ui frontend
 ```
 
-When you move to a newer dashboard, update `frontend/addon/DASHBOARD_REF`; CI checks out the
-dashboard at that commit. The dashboard takes the addon's version from the addons manager's
-list, not from the build, and offers open dashboards a reload when it changes. With the mock
+To move to a newer SDK, bump the `@oakestra/*` versions in `frontend/addon/package.json`. pnpm
+holds back versions published less than a day ago; when you install one anyway it adds it to
+`minimumReleaseAgeExclude` in `frontend/addon/pnpm-workspace.yaml`, so commit that file too.
+
+The dashboard takes the addon's version from the addons manager's list, not from the build,
+and offers open dashboards a reload when it changes. With the mock
 that is the `version` in the `/__test` call above. The real addons manager uses the tag of the
 `sla_gen_ui` image, so with `:latest` the version never changes. Pin a version tag in
 `oakestra-addon.json` when you ship new addon code.
@@ -677,6 +689,5 @@ so `shadcn add` and class merging work as usual. A few related rules:
 what it left alone.
 
 CI runs all of the checks above (except the `llm` tests) on pull requests and pushes to `main`,
-checks and builds the dashboard addon against the dashboard commit in
-`frontend/addon/DASHBOARD_REF`, then builds the three images and publishes them from `main` and
-`v*` tags.
+checks and builds the dashboard addon against the published `@oakestra/*` packages, then
+builds the three images and publishes them from `main` and `v*` tags.

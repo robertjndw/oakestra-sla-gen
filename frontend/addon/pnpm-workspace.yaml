@@ -1,0 +1,6 @@
+# pnpm skips versions younger than a day unless they're listed here. It adds them itself when you
+# install a fresh release. Frozen installs in CI and Docker check this list too.
+minimumReleaseAgeExclude:
+  - '@oakestra/api@0.1.0'
+  - '@oakestra/dashboard-sdk@0.1.0'
+  - '@oakestra/ui@0.1.0'

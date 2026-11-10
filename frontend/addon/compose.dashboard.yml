@@ -2,15 +2,14 @@
 # mock system-manager, no real Oakestra). It joins the dashboard's network, so start the
 # dashboard first.
 #
-# Needs oakestra-dashboard-v2 and oakestra-sla-gen checked out side by side (or DASHBOARD_DIR
-# pointing at the dashboard checkout, relative to this file). From the dashboard checkout, at the
-# commit in DASHBOARD_REF:
+# From a checkout of oakestra/dashboard-v2:
 #
-#   docker compose -f docker-compose.dev.yml up --build -d
+#   docker compose -f compose.dev.yml up --build -d
 #
-# Then from this repository's root:
+# Then from this repository's root, with a token that can read GitHub Packages (the addon's
+# @oakestra/* dependencies live there):
 #
-#   docker compose -f frontend/addon/compose.dashboard.yml up --build -d
+#   NODE_AUTH_TOKEN=$(gh auth token) docker compose -f frontend/addon/compose.dashboard.yml up --build -d
 #
 # Register and enable the addon at the mock addons manager:
 #
@@ -33,8 +32,8 @@ services:
     build:
       context: ..
       dockerfile: addon/Dockerfile
-      additional_contexts:
-        dashboard: ${DASHBOARD_DIR:-../../../oakestra-dashboard-v2}
+      secrets:
+        - node_auth_token
     environment:
       API_UPSTREAM: http://sla-gen:8000
     depends_on:
@@ -51,8 +50,12 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
+secrets:
+  node_auth_token:
+    environment: NODE_AUTH_TOKEN
+
 networks:
-  # Created by the dashboard's docker-compose.dev.yml (project name oakestra-dashboard-dev).
+  # Created by the dashboard's compose.dev.yml (project name oakestra-dashboard-dev).
   default:
     name: oakestra-dashboard-dev_default
     external: true

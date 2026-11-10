@@ -20,16 +20,16 @@
     "isolatedModules": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
-    // The linked SDK is TypeScript source with explicit `.ts` imports.
+    // vitest.config.ts imports vite.config.ts with its extension.
     "noEmit": true,
     "allowImportingTsExtensions": true,
     "types": ["vite/client", "node", "@oakestra/dashboard-sdk/vite/client"],
     "paths": {
       "@/*": ["../src/*"],
-      // Three React installs meet here: ours (frontend/node_modules, used by ../src), the
-      // dashboard's (seen by the linked SDK and @oakestra/ui sources) and the peer copy pnpm put
-      // next to react-router. Pinning the types to one of them keeps ReactNode, ComponentType and
-      // friends identical across all three, otherwise every prop crossing the boundary mismatches.
+      // Two React installs meet here: ours (frontend/node_modules, used by ../src) and the peer
+      // copy pnpm put here for the SDK, @oakestra/ui and react-router. Pinning the types to one of
+      // them keeps ReactNode, ComponentType and friends identical across both, otherwise every
+      // prop crossing the boundary mismatches.
       "react": ["../node_modules/@types/react"],
       "react/*": ["../node_modules/@types/react/*"],
       "react-dom": ["../node_modules/@types/react-dom"],
