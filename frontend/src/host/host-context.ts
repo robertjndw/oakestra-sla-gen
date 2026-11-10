@@ -17,7 +17,6 @@ export interface NotifyOptions {
 export interface Notifier {
   success(message: string, options?: NotifyOptions): void;
   error(message: string, options?: NotifyOptions): void;
-  info(message: string, options?: NotifyOptions): void;
 }
 
 /**
@@ -28,21 +27,16 @@ export interface Notifier {
 export interface PlaygroundActionsProps {
   /** Working copy as JSON text. Empty until there is a draft or a reopened SLA. */
   sla: string;
-  /** Name for the SLA, as its history entry shows it. */
-  title: string;
   /**
    * Live validation of `sla`. "valid" means it parsed and the server found no problems; while the
    * text was just edited it is "checking". `errors` is empty unless status is "invalid".
    */
   validation: { status: ValidationStatus; errors: string[] };
-  /** The user accepted the current draft and hasn't asked to keep refining. */
-  accepted: boolean;
   /** The model is working on a turn. Its draft may replace `sla` when it lands. */
   turnRunning: boolean;
 }
 
 export interface PlaygroundHost {
-  kind: "standalone" | "dashboard";
   notify: Notifier;
   /** Maps a logical name to the localStorage/sessionStorage key (or element id) used for it. */
   storageKey(name: StorageName): string;
@@ -61,9 +55,9 @@ export interface PlaygroundHost {
 
 // "split" names the resizable split; the panels library stores its layout under
 // "react-resizable-panels:<id>".
-export type StorageName = "mode" | "settings" | "session" | "composer" | "history" | "split" | (string & {});
+export type StorageName = "mode" | "settings" | "session" | "composer" | "history" | "split";
 
-const STANDALONE_KEYS: Record<string, string> = {
+const STANDALONE_KEYS: Record<StorageName, string> = {
   mode: MODE_STORAGE_KEY,
   settings: SETTINGS_STORAGE_KEY,
   session: SESSION_STORAGE_KEY,
@@ -73,15 +67,13 @@ const STANDALONE_KEYS: Record<string, string> = {
 };
 
 /** The keys the standalone app has always used, so existing browsers keep their data. */
-export const standaloneStorageKey = (name: StorageName): string =>
-  STANDALONE_KEYS[name] ?? `oakestra-playground-${name}`;
+export const standaloneStorageKey = (name: StorageName): string => STANDALONE_KEYS[name];
 
 const noop = () => {};
 
 export const DEFAULT_HOST: PlaygroundHost = {
-  kind: "standalone",
   // Silent rather than throwing, so components render without a provider (tests, previews).
-  notify: { success: noop, error: noop, info: noop },
+  notify: { success: noop, error: noop },
   storageKey: standaloneStorageKey,
   fixedCustomerId: null,
   showBranding: true,

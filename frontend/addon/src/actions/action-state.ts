@@ -21,8 +21,6 @@ export function blockedReason(options: {
   }
 }
 
-export const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
-
 /** True for the API client's errors with an HTTP status, without importing its class. */
 export function hasStatus(error: unknown, status: number): boolean {
   return typeof error === "object" && error !== null && (error as { status?: unknown }).status === status;

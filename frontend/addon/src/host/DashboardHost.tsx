@@ -24,7 +24,6 @@ export function DashboardHost({ scope, Actions, seed, children }: DashboardHostP
   // HostProvider merges on identity, so this has to stay stable across renders.
   const host = useMemo<Partial<PlaygroundHost>>(
     () => ({
-      kind: "dashboard",
       showBranding: false,
       notify,
       fixedCustomerId: organization,

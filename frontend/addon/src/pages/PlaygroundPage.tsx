@@ -8,7 +8,7 @@ ensureApiBase();
 export default function PlaygroundPage() {
   return (
     <DashboardHost scope="page" Actions={DeployButton}>
-      <PlaygroundFrame size="fill" />
+      <PlaygroundFrame size="page" />
     </DashboardHost>
   );
 }

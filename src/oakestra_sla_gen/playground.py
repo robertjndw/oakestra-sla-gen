@@ -61,12 +61,15 @@ class _Entry:
 @dataclass
 class _Turn:
     attempts: list[dict[str, Any]] = field(default_factory=list)
-    done: bool = False
     status: int | None = None
     body: dict[str, Any] | None = None
     finished_at: float | None = None
     # Async turns keep their result for the TTL; blocking ones are dropped as soon as they end.
     retain: bool = False
+
+    @property
+    def done(self) -> bool:
+        return self.finished_at is not None
 
 
 def _wants_async(prefer: str | None) -> bool:
@@ -130,12 +133,12 @@ def add_playground(
     # Turns by the client's turn_id, for the progress route.
     turns: dict[str, _Turn] = {}
     store_lock = threading.Lock()
-    executor: ThreadPoolExecutor | None = None
     if run_in_background is None:
         # One worker per session is enough: a session runs one turn at a time, and we never
         # keep more sessions than this.
-        executor = ThreadPoolExecutor(max_workers=MAX_SESSIONS, thread_name_prefix="playground")
-        run_in_background = executor.submit
+        run_in_background = ThreadPoolExecutor(
+            max_workers=MAX_SESSIONS, thread_name_prefix="playground"
+        ).submit
 
     def evict_locked() -> None:
         now = time.monotonic()
@@ -200,7 +203,6 @@ def add_playground(
             turn.status = status
             turn.body = body
             turn.finished_at = time.monotonic()
-            turn.done = True
             # Compared by identity: after a skipped duplicate or an eviction, the id may belong
             # to another turn that is still running.
             if not turn.retain and turn_id is not None and turns.get(turn_id) is turn:
@@ -222,13 +224,11 @@ def add_playground(
         # Bumped when the turn starts: a session stuck in a slow turn, or one whose last turn
         # failed, is still in use and shouldn't be the first one evicted.
         entry.last_used = time.monotonic()
-        if respond_async and turn_id is None:
-            turn_id = secrets.token_hex(16)
         turn = _Turn(retain=respond_async)
         # Registered before any worker starts so the first poll can't beat it to a 404.
         if not register_turn(turn_id, turn) and respond_async:
-            # The client's id still names another turn. An async client only learns the outcome
-            # through the id in the 202, so hand out a fresh one rather than the other turn's.
+            # No id, or the client's id still names another turn. An async client only learns
+            # the outcome through the id in the 202, so it needs an id of its own.
             turn_id = secrets.token_hex(16)
             register_turn(turn_id, turn)
 

@@ -6,7 +6,6 @@ import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useEditorValidation } from "@/hooks/editor-validation";
 import { useSessionContext } from "@/hooks/session-context";
-import { sessionTitle } from "@/hooks/use-history";
 import { useModelName } from "@/hooks/use-info";
 import { useHost, type PlaygroundActionsProps } from "@/host/host-context";
 import { HistoryPopover } from "./history-popover";
@@ -19,9 +18,7 @@ function HostActions() {
   if (!Actions) return null;
   const props: PlaygroundActionsProps = {
     sla: state.editedSla,
-    title: sessionTitle(state),
     validation: { status, errors },
-    accepted: state.accepted,
     turnRunning: state.turnRunning,
   };
   return <Actions {...props} />;

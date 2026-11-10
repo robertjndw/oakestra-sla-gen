@@ -1,5 +1,12 @@
-import { describeError, useAddonPath, useCurrentUser, useOakestraApi } from "@oakestra/dashboard-sdk";
-import { Alert, AlertDescription, AlertTitle, Button, Skeleton } from "@oakestra/ui";
+import {
+  describeError,
+  platformQueryKeys,
+  servicesByApplicationQuery,
+  useAddonPath,
+  useCurrentUser,
+  useOakestraApi,
+} from "@oakestra/dashboard-sdk";
+import { Alert, AlertDescription, AlertTitle, Button } from "@oakestra/ui";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeftIcon } from "lucide-react";
 import { createContext, useContext, useEffect, useState } from "react";
@@ -7,17 +14,14 @@ import { Link } from "react-router";
 import type { PlaygroundActionsProps } from "@/host/host-context";
 import { ensureApiBase } from "../ensure-api-base";
 import { DashboardHost } from "../host/DashboardHost";
-import { PlaygroundFrame } from "../layout/PlaygroundFrame";
-import type { Application, Service } from "../types";
+import { PlaygroundFrame, type PlaygroundLayout } from "../layout/PlaygroundFrame";
+import { PlaygroundSkeleton } from "../layout/PlaygroundSkeleton";
 import { AddServicesButton } from "./AddServicesButton";
 import { FullPageLink } from "./FullPageLink";
-import { GeneratorContext } from "./generator-context";
-import { generatorKeys } from "./queries";
+import { GeneratorContext, useGeneratorTarget } from "./generator-context";
 import { seedFromApplication } from "./seed-from-application";
 
 ensureApiBase();
-
-export type GeneratorLayout = "tab" | "page";
 
 // The header above the playground needs to know whether a turn runs, but only the toolbar
 // actions are told. Leaving the tab mid-turn loses the reply, so "Open full page" waits.
@@ -32,20 +36,18 @@ function GeneratorActions(props: PlaygroundActionsProps) {
 
 interface ApplicationGeneratorProps {
   applicationId: string;
-  layout: GeneratorLayout;
+  layout: PlaygroundLayout;
 }
 
 /** The playground, seeded with an existing application, adding services to it. */
 export default function ApplicationGenerator({ applicationId, layout }: ApplicationGeneratorProps) {
   const api = useOakestraApi();
   const application = useQuery({
-    queryKey: generatorKeys.application(applicationId),
+    // The shell's keys, so the tab shares the application page's cache instead of fetching again.
+    queryKey: platformQueryKeys.application(applicationId),
     queryFn: ({ signal }) => api.applications.get(applicationId, { signal }),
   });
-  const services = useQuery({
-    queryKey: generatorKeys.services(applicationId),
-    queryFn: ({ signal }) => api.services.listForApplication(applicationId, { signal }),
-  });
+  const services = useQuery(servicesByApplicationQuery(api, applicationId));
 
   // Only without data: a failed background refetch keeps the old data, and the shell toasts it.
   if ((application.isError && !application.data) || (services.isError && !services.data)) {
@@ -69,25 +71,18 @@ export default function ApplicationGenerator({ applicationId, layout }: Applicat
     );
   }
   if (!application.data || !services.data) {
-    return <Skeleton className="slagen:h-[560px] slagen:w-full" />;
+    return <PlaygroundSkeleton />;
   }
 
   return (
     <GeneratorContext value={{ application: application.data, services: services.data }}>
-      <LoadedGenerator application={application.data} services={services.data} layout={layout} />
+      <LoadedGenerator layout={layout} />
     </GeneratorContext>
   );
 }
 
-function LoadedGenerator({
-  application,
-  services,
-  layout,
-}: {
-  application: Application;
-  services: Service[];
-  layout: GeneratorLayout;
-}) {
+function LoadedGenerator({ layout }: { layout: PlaygroundLayout }) {
+  const { application, services } = useGeneratorTarget();
   const user = useCurrentUser();
   const addonPath = useAddonPath();
   const [turnRunning, setTurnRunning] = useState(false);
@@ -117,7 +112,7 @@ function LoadedGenerator({
               </Button>
             )}
           </div>
-          <PlaygroundFrame size={layout === "tab" ? "tab" : "fill"} />
+          <PlaygroundFrame size={layout} />
         </div>
       </DashboardHost>
     </TurnRunningContext>

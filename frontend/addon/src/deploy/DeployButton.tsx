@@ -1,33 +1,30 @@
-import { describeError, useCurrentUser, useNotify, useOakestraApi } from "@oakestra/dashboard-sdk";
+import { describeError, platformQueryKeys, useNotify, useOakestraApi } from "@oakestra/dashboard-sdk";
 import { ConfirmDialog } from "@oakestra/ui";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { RocketIcon } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router";
 import type { PlaygroundActionsProps } from "@/host/host-context";
+import { plural } from "@/lib/format";
 import { ActionButton } from "../actions/ActionButton";
-import { blockedReason, hasStatus, plural } from "../actions/action-state";
+import { hasStatus } from "../actions/action-state";
+import { useDeployableSla } from "../actions/use-deployable-sla";
 import type { SlaV2 } from "../types";
-import { creationErrors, toSlaV2 } from "./to-sla-v2";
+import { creationErrors } from "./to-sla-v2";
 
 const serviceCount = (sla: SlaV2) => sla.applications.reduce((sum, app) => sum + app.microservices.length, 0);
 
 /** Deploys the playground's SLA as a new application of the user's organization. */
-export function DeployButton({ sla, validation, turnRunning }: PlaygroundActionsProps) {
+export function DeployButton(props: PlaygroundActionsProps) {
   const api = useOakestraApi();
-  const user = useCurrentUser();
   const notify = useNotify();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   // What the dialog asks about, taken when it opens so it can't change under the user's eyes, and
   // kept after closing so the dialog doesn't go blank during its exit animation.
   const [confirming, setConfirming] = useState<SlaV2 | null>(null);
   const [open, setOpen] = useState(false);
-  const organization = user?.organization;
-
-  const result = useMemo(
-    () => (validation.status === "valid" ? toSlaV2(sla, organization) : null),
-    [sla, validation.status, organization],
-  );
+  const { result, reason: blocked } = useDeployableSla(props);
 
   const deploy = useMutation({
     mutationFn: async (body: SlaV2) => {
@@ -44,6 +41,8 @@ export function DeployButton({ sla, validation, turnRunning }: PlaygroundActions
     meta: { silent: true },
     onSuccess: async (created, body) => {
       setOpen(false);
+      // Not awaited: the shell's application lists refetch in the background while we navigate.
+      void queryClient.invalidateQueries({ queryKey: platformQueryKeys.applications() });
       notify.success(`Deployed ${body.applications[0]?.application_name ?? "the application"}`, {
         // Creating an application only registers its services; nothing runs until its instances
         // are deployed, which the application page offers next.
@@ -53,8 +52,7 @@ export function DeployButton({ sla, validation, turnRunning }: PlaygroundActions
     },
   });
 
-  let reason = blockedReason({ status: validation.status, turnRunning, organization });
-  if (!reason && result && !result.ok) reason = result.errors[0] ?? "The SLA can't be deployed.";
+  let reason = blocked;
   if (!reason && result?.ok) reason = creationErrors(result.sla.applications.flatMap((app) => app.microservices))[0] ?? null;
 
   const application = confirming?.applications[0];

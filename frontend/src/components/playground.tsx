@@ -10,7 +10,7 @@ import { useHost } from "@/host/host-context";
 import { cn } from "@/lib/utils";
 
 /** 64rem, the same as the @5xl container variant (and the viewport's lg) used below. */
-const WIDE_REM = 64;
+export const WIDE_REM = 64;
 
 /**
  * The whole playground: top bar plus the conversation and SLA panes. It sizes itself from

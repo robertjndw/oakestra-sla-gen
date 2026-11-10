@@ -19,9 +19,7 @@ function Location() {
 
 export const actionProps = (sla: unknown, overrides: Partial<PlaygroundActionsProps> = {}): PlaygroundActionsProps => ({
   sla: typeof sla === "string" ? sla : JSON.stringify(sla),
-  title: "Draft",
   validation: { status: "valid", errors: [] },
-  accepted: false,
   turnRunning: false,
   ...overrides,
 });
