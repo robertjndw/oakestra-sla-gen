@@ -1,0 +1,69 @@
+/*
+ * Styles both builds share: the standalone app imports this from index.css, the dashboard addon
+ * from its addon.css. Keep it free of @import and plain selectors. The addon runs inside the
+ * dashboard shell, which already loaded Tailwind's preflight, and its build rejects any class
+ * selector without our prefix. @theme and @utility are fine because Tailwind prefixes them.
+ *
+ * The raw --sla-* values are not defined here; each build sets them for light and dark.
+ */
+
+@theme inline {
+  --color-amber: var(--sla-amber);
+  --color-amber-dot: var(--sla-amber-dot);
+  --color-amber-soft: var(--sla-amber-soft);
+  --color-rust: var(--sla-rust);
+  --color-rust-soft: var(--sla-rust-soft);
+
+  --animate-indeterminate: slagen-indeterminate 1.4s ease-in-out infinite;
+
+  /* Keyframe names are not prefixed by Tailwind and share one namespace with the shell. */
+  @keyframes slagen-indeterminate {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(350%);
+    }
+  }
+}
+
+/*
+ * Token classes for syntax-plugin.ts. The JSON language's own highlighter is a fallback with
+ * light-only colours, and CodeMirror injects its styles unlayered, so these need !important to
+ * win over whatever it puts on the same spans or inside them.
+ */
+@utility syn-key {
+  &,
+  & * {
+    color: var(--foreground) !important;
+    font-weight: 500 !important;
+  }
+}
+
+@utility syn-str {
+  &,
+  & * {
+    color: var(--sla-syn-str) !important;
+  }
+}
+
+@utility syn-num {
+  &,
+  & * {
+    color: var(--sla-syn-num) !important;
+  }
+}
+
+@utility syn-lit {
+  &,
+  & * {
+    color: var(--sla-syn-lit) !important;
+  }
+}
+
+@utility syn-punc {
+  &,
+  & * {
+    color: var(--muted-foreground) !important;
+  }
+}

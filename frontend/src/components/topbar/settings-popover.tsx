@@ -8,6 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSessionContext } from "@/hooks/session-context";
+import { useHost } from "@/host/host-context";
 import { MAX_RETRIES, MIN_RETRIES } from "@/lib/constants";
 import { plural } from "@/lib/format";
 
@@ -17,19 +18,19 @@ const clampRetries = (n: number) => Math.max(MIN_RETRIES, Math.min(MAX_RETRIES, 
 // field is locked and the label is dimmed.
 function LabelWithHelp({ htmlFor, label, children }: { htmlFor: string; label: string; children: ReactNode }) {
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="slagen:flex slagen:items-center slagen:gap-1.5">
       <FieldLabel htmlFor={htmlFor}>{label}</FieldLabel>
       <Tooltip>
         <TooltipTrigger asChild>
           <button
             type="button"
             aria-label={`About ${label}`}
-            className="rounded-full text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            className="slagen:rounded-full slagen:text-muted-foreground slagen:hover:text-foreground slagen:focus-visible:ring-2 slagen:focus-visible:ring-ring slagen:focus-visible:outline-none"
           >
-            <CircleHelpIcon className="size-3.5" aria-hidden />
+            <CircleHelpIcon className="slagen:size-3.5" aria-hidden />
           </button>
         </TooltipTrigger>
-        <TooltipContent side="left" className="max-w-72">
+        <TooltipContent side="left" className="slagen:max-w-72">
           {children}
         </TooltipContent>
       </Tooltip>
@@ -39,6 +40,8 @@ function LabelWithHelp({ htmlFor, label, children }: { htmlFor: string; label: s
 
 export function SettingsPopover() {
   const { state, settingsLocked, setSettings } = useSessionContext();
+  // The session controller sends the host's ID instead, so the field would only mislead.
+  const { fixedCustomerId } = useHost();
   const { settings } = state;
   // Kept as text while typing so the field can be empty; clamped when it loses focus.
   const [retriesText, setRetriesText] = useState(String(settings.maxRetries));
@@ -53,22 +56,22 @@ export function SettingsPopover() {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="sm" className="gap-1.5">
+        <Button variant="ghost" size="sm" className="slagen:gap-1.5">
           {settingsLocked ? (
-            <LockIcon className="size-3.5 text-muted-foreground" aria-label="Locked" />
+            <LockIcon className="slagen:size-3.5 slagen:text-muted-foreground" aria-label="Locked" />
           ) : (
-            <Settings2Icon className="size-3.5 text-muted-foreground" aria-hidden />
+            <Settings2Icon className="slagen:size-3.5 slagen:text-muted-foreground" aria-hidden />
           )}
           Settings
-          <span className="hidden font-normal text-muted-foreground sm:inline">
+          <span className="slagen:hidden slagen:font-normal slagen:text-muted-foreground slagen:sm:inline">
             {plural(settings.maxRetries, "attempt")}
           </span>
-          <ChevronDownIcon className="size-3.5 text-muted-foreground" />
+          <ChevronDownIcon className="slagen:size-3.5 slagen:text-muted-foreground" />
         </Button>
       </PopoverTrigger>
       <PopoverContent
         align="end"
-        className="w-80"
+        className="slagen:w-80"
         // By default the first focusable element gets focus on open. That is the first help icon,
         // and focus opens its tooltip as if it were hovered. Focusing the content itself (Radix
         // makes it tabIndex -1) keeps keyboard users inside the popover without that.
@@ -77,8 +80,8 @@ export function SettingsPopover() {
           (e.currentTarget as HTMLElement | null)?.focus();
         }}
       >
-        <FieldGroup className="gap-4">
-          <Field data-disabled={settingsLocked} className="gap-1.5">
+        <FieldGroup className="slagen:gap-4">
+          <Field data-disabled={settingsLocked} className="slagen:gap-1.5">
             <LabelWithHelp htmlFor="setting-retries" label="Attempts per round">
               {`How many tries the model gets per message (${MIN_RETRIES} to ${MAX_RETRIES}). When a draft fails validation, the errors go back to the model and it tries again. More attempts help weaker models get there but make a round take longer.`}
             </LabelWithHelp>
@@ -94,21 +97,23 @@ export function SettingsPopover() {
               onBlur={commitRetries}
             />
           </Field>
-          <Field data-disabled={settingsLocked} className="gap-1.5">
-            <LabelWithHelp htmlFor="setting-customer" label="Customer ID">
-              The Oakestra customer ID written into the SLA&apos;s customerID field. Leave it empty to use Admin,
-              or to keep the ID of an uploaded SLA.
-            </LabelWithHelp>
-            <Input
-              id="setting-customer"
-              type="text"
-              value={settings.customerId}
-              placeholder="Admin, or the uploaded SLA's own"
-              disabled={settingsLocked}
-              onChange={(e) => setSettings({ ...settings, customerId: e.target.value })}
-            />
-          </Field>
-          <Field orientation="horizontal" data-disabled={settingsLocked} className="gap-2">
+          {fixedCustomerId === null && (
+            <Field data-disabled={settingsLocked} className="slagen:gap-1.5">
+              <LabelWithHelp htmlFor="setting-customer" label="Customer ID">
+                The Oakestra customer ID written into the SLA&apos;s customerID field. Leave it empty to use Admin,
+                or to keep the ID of an uploaded SLA.
+              </LabelWithHelp>
+              <Input
+                id="setting-customer"
+                type="text"
+                value={settings.customerId}
+                placeholder="Admin, or the uploaded SLA's own"
+                disabled={settingsLocked}
+                onChange={(e) => setSettings({ ...settings, customerId: e.target.value })}
+              />
+            </Field>
+          )}
+          <Field orientation="horizontal" data-disabled={settingsLocked} className="slagen:gap-2">
             <Switch
               id="setting-images"
               checked={settings.checkImages}
@@ -123,9 +128,9 @@ export function SettingsPopover() {
           </Field>
         </FieldGroup>
         {settingsLocked && (
-          <Alert variant="warning" role="status" className="px-3 py-2">
+          <Alert variant="warning" role="status" className="slagen:px-3 slagen:py-2">
             <LockIcon />
-            <AlertDescription className="text-xs">
+            <AlertDescription className="slagen:text-xs">
               These are fixed for the current session. Start a new session to change them.
             </AlertDescription>
           </Alert>

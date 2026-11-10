@@ -27,7 +27,7 @@ function PopoverContent({
         align={align}
         sideOffset={sideOffset}
         className={cn(
-          "z-50 flex w-72 origin-(--radix-popover-content-transform-origin) flex-col gap-4 rounded-md bg-popover p-4 text-sm text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-hidden duration-100 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          "slagen:z-50 slagen:flex slagen:w-72 slagen:origin-(--radix-popover-content-transform-origin) slagen:flex-col slagen:gap-4 slagen:rounded-md slagen:bg-popover slagen:p-4 slagen:text-sm slagen:text-popover-foreground slagen:shadow-md slagen:ring-1 slagen:ring-foreground/10 slagen:outline-hidden slagen:duration-100 slagen:data-[side=bottom]:slide-in-from-top-2 slagen:data-[side=left]:slide-in-from-right-2 slagen:data-[side=right]:slide-in-from-left-2 slagen:data-[side=top]:slide-in-from-bottom-2 slagen:data-open:animate-in slagen:data-open:fade-in-0 slagen:data-open:zoom-in-95 slagen:data-closed:animate-out slagen:data-closed:fade-out-0 slagen:data-closed:zoom-out-95",
           className
         )}
         {...props}
@@ -46,7 +46,7 @@ function PopoverHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="popover-header"
-      className={cn("flex flex-col gap-1 text-sm", className)}
+      className={cn("slagen:flex slagen:flex-col slagen:gap-1 slagen:text-sm", className)}
       {...props}
     />
   )
@@ -56,7 +56,7 @@ function PopoverTitle({ className, ...props }: React.ComponentProps<"h2">) {
   return (
     <div
       data-slot="popover-title"
-      className={cn("font-medium", className)}
+      className={cn("slagen:font-medium", className)}
       {...props}
     />
   )
@@ -69,7 +69,7 @@ function PopoverDescription({
   return (
     <p
       data-slot="popover-description"
-      className={cn("text-muted-foreground", className)}
+      className={cn("slagen:text-muted-foreground", className)}
       {...props}
     />
   )

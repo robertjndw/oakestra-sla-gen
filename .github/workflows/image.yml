@@ -34,14 +34,52 @@ jobs:
         run: |
           pnpm install --frozen-lockfile
           pnpm lint
+          pnpm check:classes
+          pnpm typecheck
+          pnpm test
+
+  # The addon's @oakestra/* dependencies come from GitHub Packages, which needs a token even for
+  # public packages. pnpm only reads it from the user npmrc, which setup-node writes.
+  addon:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: frontend/addon/package.json
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: https://npm.pkg.github.com
+          scope: "@oakestra"
+          cache: pnpm
+          cache-dependency-path: |
+            frontend/pnpm-lock.yaml
+            frontend/addon/pnpm-lock.yaml
+      # The addon resolves react and friends from frontend/node_modules.
+      - name: Install frontend
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+      # No build here: the addon image in the build job runs the same pnpm build.
+      - name: Addon checks
+        working-directory: frontend/addon
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          pnpm install --frozen-lockfile
           pnpm typecheck
           pnpm test
 
   build:
-    needs: checks
+    needs: [checks, addon]
     runs-on: ubuntu-latest
-    # Only this job pushes images, so checks doesn't get packages: write. On PRs the token is
-    # never used here: login and push are skipped, and docker build doesn't receive it.
+    # Only this job pushes images, so checks doesn't get packages: write. On PRs login and push
+    # are skipped. The addon build gets the token as a secret to install its @oakestra/*
+    # packages. Fork PRs only get a read-only token.
     permissions:
       contents: read
       packages: write
@@ -50,9 +88,15 @@ jobs:
       matrix:
         include:
           - context: .
+            file: Dockerfile
             image: oakestra-sla-gen
           - context: frontend
+            file: frontend/Dockerfile
             image: oakestra-sla-gen-frontend
+          - context: frontend
+            file: frontend/addon/Dockerfile
+            image: oakestra-sla-gen-addon-ui
+            packages: true
     steps:
       - uses: actions/checkout@v7
 
@@ -81,6 +125,8 @@ jobs:
       - uses: docker/build-push-action@v7
         with:
           context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          secrets: ${{ matrix.packages && format('node_auth_token={0}', secrets.GITHUB_TOKEN) || '' }}
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}

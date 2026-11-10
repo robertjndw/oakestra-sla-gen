@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SessionContext } from "@/hooks/session-context";
 import { initialState, type SessionApi } from "@/hooks/use-session";
+import { HostProvider } from "@/host/host-provider";
 import { SettingsPopover } from "./settings-popover";
 
 function fakeApi(): SessionApi {
@@ -41,5 +42,21 @@ describe("SettingsPopover", () => {
     expect(screen.getByLabelText("Attempts per round")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "About Attempts per round" })).not.toHaveFocus();
     expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  it("hides the customer ID when the host fixes it", async () => {
+    const user = userEvent.setup();
+    render(
+      <HostProvider host={{ fixedCustomerId: "acme" }}>
+        <SessionContext.Provider value={fakeApi()}>
+          <TooltipProvider delayDuration={0}>
+            <SettingsPopover />
+          </TooltipProvider>
+        </SessionContext.Provider>
+      </HostProvider>,
+    );
+    await user.click(screen.getByRole("button", { name: /settings/i }));
+    expect(screen.getByLabelText("Attempts per round")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Customer ID")).toBeNull();
   });
 });

@@ -9,23 +9,23 @@ interface Props {
 export function ProblemsList({ items, onSelect }: Props) {
   if (!items.length) return null;
   return (
-    <ScrollArea className="max-h-44 shrink-0 border-t">
-      <ul aria-label="Problems" className="divide-y">
+    <ScrollArea className="slagen:max-h-44 slagen:shrink-0 slagen:border-t">
+      <ul aria-label="Problems" className="slagen:divide-y">
         {items.map((item, i) => (
           <li key={i}>
             <button
               type="button"
               disabled={!item.line}
               onClick={() => item.line && onSelect(item.line)}
-              className="flex w-full items-baseline gap-3 px-4 py-2 text-left text-sm hover:bg-rust-soft focus-visible:bg-rust-soft focus-visible:outline-none enabled:cursor-pointer disabled:cursor-default"
+              className="slagen:flex slagen:w-full slagen:items-baseline slagen:gap-3 slagen:px-4 slagen:py-2 slagen:text-left slagen:text-sm slagen:hover:bg-rust-soft slagen:focus-visible:bg-rust-soft slagen:focus-visible:outline-none slagen:enabled:cursor-pointer slagen:disabled:cursor-default"
             >
-              <span className="w-14 shrink-0 font-mono text-xs text-rust">
+              <span className="slagen:w-14 slagen:shrink-0 slagen:font-mono slagen:text-xs slagen:text-rust">
                 {item.line ? "Line " + item.line : "JSON"}
               </span>
-              <span className="min-w-0">
+              <span className="slagen:min-w-0">
                 {item.message}
                 {item.path && (
-                  <span className="mt-0.5 block font-mono text-xs break-all text-muted-foreground">
+                  <span className="slagen:mt-0.5 slagen:block slagen:font-mono slagen:text-xs slagen:break-all slagen:text-muted-foreground">
                     {item.path}
                   </span>
                 )}

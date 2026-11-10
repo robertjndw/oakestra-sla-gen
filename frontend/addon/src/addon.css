@@ -1,0 +1,49 @@
+/*
+ * Utilities only. The shell already loaded Tailwind's reset and its token values; a second
+ * preflight here would reset the shell's styles once the addon loads.
+ *
+ * prefix(slagen) makes every class of this addon slagen:<utility>, the same prefix the shared
+ * playground code in ../../src is written with. This stylesheet loads after the shell's, so an
+ * unprefixed utility generated here would beat the shell's own classes. The build rejects any.
+ */
+@import "tailwindcss/theme.css" layer(theme) prefix(slagen);
+@import "tailwindcss/utilities.css" layer(utilities);
+@import "tw-animate-css";
+/* Not shadcn/tailwind.css itself: it ends in a plain .shimmer rule, which the prefix check rejects. */
+@import "../../src/styles/shadcn-tailwind.css";
+@import "@oakestra/ui/theme.css";
+@import "../../src/styles/shared.css";
+
+@theme inline {
+  /* The standalone app uses IBM Plex for headings; inside the dashboard they follow the shell. */
+  --font-heading: inherit;
+}
+
+/*
+ * Values for the playground's own tokens (the rest come from the shell). Mapped onto the shell's
+ * palette where one fits, so warnings and errors look like the dashboard's own. The syntax
+ * colours have no counterpart there and keep the standalone app's values.
+ */
+:root {
+  --sla-amber: var(--warning);
+  --sla-amber-dot: color-mix(in oklab, var(--warning) 75%, white);
+  --sla-amber-soft: color-mix(in oklab, var(--warning) 14%, transparent);
+  --sla-rust: var(--destructive);
+  --sla-rust-soft: color-mix(in oklab, var(--destructive) 12%, transparent);
+  --sla-syn-str: #2c6a4c;
+  --sla-syn-num: #7d4cc2;
+  --sla-syn-lit: #ad541a;
+}
+
+.dark {
+  /* The shell's dark warning is already light; mixing in white would wash it out. */
+  --sla-amber-dot: var(--warning);
+  --sla-amber-soft: color-mix(in oklab, var(--warning) 16%, transparent);
+  --sla-rust-soft: color-mix(in oklab, var(--destructive) 16%, transparent);
+  --sla-syn-str: #7fcb9f;
+  --sla-syn-num: #c5a6f5;
+  --sla-syn-lit: #eba272;
+}
+
+@source "./";
+@source "../../src";

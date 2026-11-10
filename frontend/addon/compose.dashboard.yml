@@ -1,0 +1,61 @@
+# Runs the playground as a UI addon next to the dashboard's dev stack (mock addons manager and
+# mock system-manager, no real Oakestra). It joins the dashboard's network, so start the
+# dashboard first.
+#
+# From a checkout of oakestra/dashboard-v2:
+#
+#   docker compose -f compose.dev.yml up --build -d
+#
+# Then from this repository's root, with a token that can read GitHub Packages (the addon's
+# @oakestra/* dependencies live there):
+#
+#   NODE_AUTH_TOKEN=$(gh auth token) docker compose -f frontend/addon/compose.dashboard.yml up --build -d
+#
+# Register and enable the addon at the mock addons manager:
+#
+#   curl -X PUT http://localhost:11101/__test/addons/sla-generator \
+#     -H 'content-type: application/json' \
+#     -d '{"enabled": true, "version": "0.1.0", "sdk": "^0.1.0"}'
+#
+# Open http://localhost:8080 and log in as Admin / Admin. The LLM is read from OPENAI_BASE_URL
+# (default: LM Studio on the host); set OPENAI_BASE_URL, OPENAI_API_KEY, OAKESTRA_SLA_MODEL and
+# OAKESTRA_SLA_METHOD in the environment to change it.
+#
+# Relative paths below resolve against this file's directory.
+name: oakestra-sla-gen-addon
+
+services:
+  # The dashboard's nginx proxies /addon-assets/sla-generator/ to this name. Compose adds the
+  # service name as a DNS alias on the network, so the dashboard can resolve it from its own
+  # project.
+  addonui-sla-generator:
+    build:
+      context: ..
+      dockerfile: addon/Dockerfile
+      secrets:
+        - node_auth_token
+    environment:
+      API_UPSTREAM: http://sla-gen:8000
+    depends_on:
+      - sla-gen
+
+  sla-gen:
+    build: ../..
+    environment:
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-http://host.docker.internal:1234/v1}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-lm-studio}
+      OAKESTRA_SLA_MODEL: ${OAKESTRA_SLA_MODEL:-qwen/qwen3.8-27b}
+      OAKESTRA_SLA_METHOD: ${OAKESTRA_SLA_METHOD:-prompt}
+    # Docker Desktop resolves host.docker.internal on its own; on Linux it needs this mapping.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+secrets:
+  node_auth_token:
+    environment: NODE_AUTH_TOKEN
+
+networks:
+  # Created by the dashboard's compose.dev.yml (project name oakestra-dashboard-dev).
+  default:
+    name: oakestra-dashboard-dev_default
+    external: true

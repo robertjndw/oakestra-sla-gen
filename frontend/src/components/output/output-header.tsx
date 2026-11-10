@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useHost } from "@/host/host-context";
 import { copySla, downloadSla } from "@/lib/file-actions";
 import { plural } from "@/lib/format";
 import type { ValidationResult } from "@/hooks/use-validation";
@@ -34,7 +35,7 @@ export interface HeaderProps {
 
 // The underline sits on the header's bottom border, so the triggers fill the full header height.
 const TAB_CLASS =
-  "h-full flex-none rounded-none px-3 group-data-horizontal/tabs:after:bottom-[-1px] group-data-[variant=line]/tabs-list:data-active:after:bg-primary";
+  "slagen:h-full slagen:flex-none slagen:rounded-none slagen:px-3 slagen:group-data-horizontal/tabs:after:bottom-[-1px] slagen:group-data-[variant=line]/tabs-list:data-active:after:bg-primary";
 
 type BadgeVariant = "default" | "success" | "warning" | "danger";
 
@@ -72,12 +73,12 @@ function HeaderAction({
           type="button"
           variant="ghost"
           size="icon-sm"
-          className="text-muted-foreground hover:text-foreground"
+          className="slagen:text-muted-foreground slagen:hover:text-foreground"
           disabled={disabled}
           onClick={onClick}
         >
-          <Icon className="size-4" />
-          <span className="sr-only">{label}</span>
+          <Icon className="slagen:size-4" />
+          <span className="slagen:sr-only">{label}</span>
         </Button>
       </TooltipTrigger>
       <TooltipContent>
@@ -89,14 +90,15 @@ function HeaderAction({
 
 export function OutputHeader(props: HeaderProps) {
   const { text, validation, mode, onModeChange, drafts, viewedDraft } = props;
+  const { notify } = useHost();
   const hasText = text.trim() !== "";
   const badge = badgeFor(props);
   const title = titleFor(props);
 
   return (
-    <div className="flex min-h-11 flex-wrap items-center justify-between gap-x-4 border-b bg-card pl-4 pr-2">
-      <div className="flex min-w-0 items-center gap-2 py-2">
-        <h2 className="text-sm font-semibold">
+    <div className="slagen:flex slagen:min-h-11 slagen:flex-wrap slagen:items-center slagen:justify-between slagen:gap-x-4 slagen:border-b slagen:bg-card slagen:pl-4 slagen:pr-2">
+      <div className="slagen:flex slagen:min-w-0 slagen:items-center slagen:gap-2 slagen:py-2">
+        <h2 className="slagen:text-sm slagen:font-semibold">
           {drafts.length > 1 ? (
             <DraftPicker
               title={title}
@@ -120,9 +122,9 @@ export function OutputHeader(props: HeaderProps) {
           </Badge>
         )}
       </div>
-      <div className="flex items-center gap-2 self-stretch">
-        <Tabs value={mode} onValueChange={(v) => isOutputMode(v) && onModeChange(v)} className="self-stretch">
-          <TabsList variant="line" aria-label="View" className="h-full! gap-0 p-0">
+      <div className="slagen:flex slagen:items-center slagen:gap-2 slagen:self-stretch">
+        <Tabs value={mode} onValueChange={(v) => isOutputMode(v) && onModeChange(v)} className="slagen:self-stretch">
+          <TabsList variant="line" aria-label="View" className="slagen:h-full! slagen:gap-0 slagen:p-0">
             <TabsTrigger value="visual" className={TAB_CLASS}>
               Visual
             </TabsTrigger>
@@ -131,9 +133,9 @@ export function OutputHeader(props: HeaderProps) {
             </TabsTrigger>
           </TabsList>
         </Tabs>
-        <Separator orientation="vertical" className="my-3" />
-        <div className="flex items-center">
-          <HeaderAction tooltip="Copy" label="Copy the SLA" icon={CopyIcon} disabled={!hasText} onClick={() => void copySla(text)} />
+        <Separator orientation="vertical" className="slagen:my-3" />
+        <div className="slagen:flex slagen:items-center">
+          <HeaderAction tooltip="Copy" label="Copy the SLA" icon={CopyIcon} disabled={!hasText} onClick={() => void copySla(text, notify)} />
           <HeaderAction
             tooltip="Download sla.json"
             label="Download sla.json"

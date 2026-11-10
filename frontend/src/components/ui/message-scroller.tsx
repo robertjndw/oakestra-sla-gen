@@ -24,7 +24,7 @@ function MessageScroller({
     <MessageScrollerPrimitive.Root
       data-slot="message-scroller"
       className={cn(
-        "group/message-scroller relative flex size-full min-h-0 flex-col overflow-hidden",
+        "slagen:group/message-scroller slagen:relative slagen:flex slagen:size-full slagen:min-h-0 slagen:flex-col slagen:overflow-hidden",
         className
       )}
       {...props}
@@ -40,7 +40,7 @@ function MessageScrollerViewport({
     <MessageScrollerPrimitive.Viewport
       data-slot="message-scroller-viewport"
       className={cn(
-        "size-full min-h-0 min-w-0 scroll-fade-b scrollbar-thin scrollbar-gutter-stable overflow-y-auto overscroll-contain contain-content data-autoscrolling:scrollbar-thumb-transparent data-autoscrolling:scrollbar-track-transparent data-pending-scroll:invisible",
+        "slagen:size-full slagen:min-h-0 slagen:min-w-0 slagen:scroll-fade-b slagen:scrollbar-thin slagen:scrollbar-gutter-stable slagen:overflow-y-auto slagen:overscroll-contain slagen:contain-content slagen:data-autoscrolling:scrollbar-thumb-transparent slagen:data-autoscrolling:scrollbar-track-transparent slagen:data-pending-scroll:invisible",
         className
       )}
       {...props}
@@ -55,7 +55,7 @@ function MessageScrollerContent({
   return (
     <MessageScrollerPrimitive.Content
       data-slot="message-scroller-content"
-      className={cn("flex h-max min-h-full flex-col gap-8", className)}
+      className={cn("slagen:flex slagen:h-max slagen:min-h-full slagen:flex-col slagen:gap-8", className)}
       {...props}
     />
   )
@@ -71,7 +71,7 @@ function MessageScrollerItem({
       data-slot="message-scroller-item"
       scrollAnchor={scrollAnchor}
       className={cn(
-        "min-w-0 shrink-0 [contain-intrinsic-size:auto_10rem] [content-visibility:auto]",
+        "slagen:min-w-0 slagen:shrink-0 slagen:[contain-intrinsic-size:auto_10rem] slagen:[content-visibility:auto]",
         className
       )}
       {...props}
@@ -97,7 +97,7 @@ function MessageScrollerButton({
       data-size={size}
       direction={direction}
       className={cn(
-        "absolute inset-s-1/2 -translate-x-1/2 border-border bg-background text-foreground transition-[translate,scale,opacity] duration-200 hover:bg-muted hover:text-foreground data-[active=false]:pointer-events-none data-[active=false]:scale-95 data-[active=false]:opacity-0 data-[active=false]:duration-400 data-[active=false]:ease-[cubic-bezier(0.7,0,0.84,0)] data-[active=true]:translate-y-0 data-[active=true]:scale-100 data-[active=true]:opacity-100 data-[active=true]:ease-[cubic-bezier(0.23,1,0.32,1)] data-[direction=end]:bottom-4 data-[direction=end]:data-[active=false]:translate-y-full data-[direction=start]:top-4 data-[direction=start]:data-[active=false]:-translate-y-full rtl:translate-x-1/2 data-[direction=start]:[&_svg]:rotate-180",
+        "slagen:absolute slagen:inset-s-1/2 slagen:-translate-x-1/2 slagen:border-border slagen:bg-background slagen:text-foreground slagen:transition-[translate,scale,opacity] slagen:duration-200 slagen:hover:bg-muted slagen:hover:text-foreground slagen:data-[active=false]:pointer-events-none slagen:data-[active=false]:scale-95 slagen:data-[active=false]:opacity-0 slagen:data-[active=false]:duration-400 slagen:data-[active=false]:ease-[cubic-bezier(0.7,0,0.84,0)] slagen:data-[active=true]:translate-y-0 slagen:data-[active=true]:scale-100 slagen:data-[active=true]:opacity-100 slagen:data-[active=true]:ease-[cubic-bezier(0.23,1,0.32,1)] slagen:data-[direction=end]:bottom-4 slagen:data-[direction=end]:data-[active=false]:translate-y-full slagen:data-[direction=start]:top-4 slagen:data-[direction=start]:data-[active=false]:-translate-y-full slagen:rtl:translate-x-1/2 slagen:data-[direction=start]:[&_svg]:rotate-180",
         className
       )}
       render={render ?? <Button variant={variant} size={size} />}
@@ -107,7 +107,7 @@ function MessageScrollerButton({
         <>
           <ArrowDownIcon
           />
-          <span className="sr-only">
+          <span className="slagen:sr-only">
             {direction === "end" ? "Scroll to end" : "Scroll to start"}
           </span>
         </>

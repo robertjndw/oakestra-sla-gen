@@ -16,14 +16,14 @@ function Switch({
       data-slot="switch"
       data-size={size}
       className={cn(
-        "peer group/switch relative inline-flex shrink-0 items-center rounded-full border border-transparent shadow-xs transition-all outline-none group-has-[:focus-visible]/field-label:border-transparent group-has-[:focus-visible]/field-label:ring-0 after:absolute after:-inset-x-3 after:-inset-y-2 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 data-[size=default]:h-[18.4px] data-[size=default]:w-[32px] data-[size=sm]:h-[14px] data-[size=sm]:w-[24px] dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 data-checked:bg-primary data-unchecked:bg-input dark:data-unchecked:bg-input/80 data-disabled:cursor-not-allowed data-disabled:opacity-50",
+        "slagen:peer slagen:group/switch slagen:relative slagen:inline-flex slagen:shrink-0 slagen:items-center slagen:rounded-full slagen:border slagen:border-transparent slagen:shadow-xs slagen:transition-all slagen:outline-none slagen:group-has-[:focus-visible]/field-label:border-transparent slagen:group-has-[:focus-visible]/field-label:ring-0 slagen:after:absolute slagen:after:-inset-x-3 slagen:after:-inset-y-2 slagen:focus-visible:border-ring slagen:focus-visible:ring-3 slagen:focus-visible:ring-ring/50 slagen:aria-invalid:border-destructive slagen:aria-invalid:ring-3 slagen:aria-invalid:ring-destructive/20 slagen:data-[size=default]:h-[18.4px] slagen:data-[size=default]:w-[32px] slagen:data-[size=sm]:h-[14px] slagen:data-[size=sm]:w-[24px] slagen:dark:aria-invalid:border-destructive/50 slagen:dark:aria-invalid:ring-destructive/40 slagen:data-checked:bg-primary slagen:data-unchecked:bg-input slagen:dark:data-unchecked:bg-input/80 slagen:data-disabled:cursor-not-allowed slagen:data-disabled:opacity-50",
         className
       )}
       {...props}
     >
       <SwitchPrimitive.Thumb
         data-slot="switch-thumb"
-        className="pointer-events-none block rounded-full bg-background ring-0 transition-transform group-data-[size=default]/switch:size-4 group-data-[size=sm]/switch:size-3 group-data-[size=default]/switch:data-checked:translate-x-[calc(100%-2px)] group-data-[size=sm]/switch:data-checked:translate-x-[calc(100%-2px)] dark:data-checked:bg-primary-foreground group-data-[size=default]/switch:data-unchecked:translate-x-0 group-data-[size=sm]/switch:data-unchecked:translate-x-0 dark:data-unchecked:bg-foreground"
+        className="slagen:pointer-events-none slagen:block slagen:rounded-full slagen:bg-background slagen:ring-0 slagen:transition-transform slagen:group-data-[size=default]/switch:size-4 slagen:group-data-[size=sm]/switch:size-3 slagen:group-data-[size=default]/switch:data-checked:translate-x-[calc(100%-2px)] slagen:group-data-[size=sm]/switch:data-checked:translate-x-[calc(100%-2px)] slagen:dark:data-checked:bg-primary-foreground slagen:group-data-[size=default]/switch:data-unchecked:translate-x-0 slagen:group-data-[size=sm]/switch:data-unchecked:translate-x-0 slagen:dark:data-unchecked:bg-foreground"
       />
     </SwitchPrimitive.Root>
   )

@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 export type Status = "ok" | "ask";
 
 const ICONS = { ok: CheckCircle2Icon, ask: CircleHelpIcon } as const;
-const COLORS = { ok: "text-primary", ask: "text-amber-dot" } as const;
+const COLORS = { ok: "slagen:text-primary", ask: "slagen:text-amber-dot" } as const;
 const LABELS = { ok: "Passed", ask: "Needs input" } as const;
 
 interface Props {
@@ -25,23 +25,23 @@ interface Props {
 export function StatusHead({ status, title, meta, onTitleClick, titleLabel, current, viewing }: Props) {
   const Icon = ICONS[status];
   return (
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-      <Icon className={cn("size-4 shrink-0", COLORS[status])} aria-label={LABELS[status]} role="img" />
+    <div className="slagen:flex slagen:flex-wrap slagen:items-center slagen:gap-x-2 slagen:gap-y-0.5">
+      <Icon className={cn("slagen:size-4 slagen:shrink-0", COLORS[status])} aria-label={LABELS[status]} role="img" />
       {onTitleClick ? (
         <button
           type="button"
           aria-label={titleLabel}
           aria-current={current || undefined}
           onClick={onTitleClick}
-          className="cursor-pointer rounded-sm font-medium underline decoration-border underline-offset-4 outline-none hover:decoration-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          className="slagen:cursor-pointer slagen:rounded-sm slagen:font-medium slagen:underline slagen:decoration-border slagen:underline-offset-4 slagen:outline-none slagen:hover:decoration-foreground slagen:focus-visible:ring-2 slagen:focus-visible:ring-ring slagen:focus-visible:ring-offset-2 slagen:focus-visible:ring-offset-background"
         >
           {title}
         </button>
       ) : (
-        <span className="font-medium">{title}</span>
+        <span className="slagen:font-medium">{title}</span>
       )}
       {viewing && <Badge variant="warning">Viewing</Badge>}
-      {meta && <span className="text-muted-foreground text-xs">{meta}</span>}
+      {meta && <span className="slagen:text-muted-foreground slagen:text-xs">{meta}</span>}
     </div>
   );
 }

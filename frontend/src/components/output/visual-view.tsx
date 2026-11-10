@@ -32,7 +32,7 @@ export function VisualView({ sla, previous, errors, parseError }: Props) {
   const multiApp = apps.length > 1;
 
   return (
-    <div className="space-y-4">
+    <div className="slagen:space-y-4">
       {parseError && (
         <Alert variant="warning" role="status">
           <TriangleAlertIcon />
@@ -41,15 +41,15 @@ export function VisualView({ sla, previous, errors, parseError }: Props) {
           </AlertDescription>
         </Alert>
       )}
-      <div className="space-y-1">
-        <p className="text-[15px] font-semibold">{summarize(sla, list)}</p>
-        {description && <p className="text-sm text-muted-foreground">{description}</p>}
+      <div className="slagen:space-y-1">
+        <p className="slagen:text-[15px] slagen:font-semibold">{summarize(sla, list)}</p>
+        {description && <p className="slagen:text-sm slagen:text-muted-foreground">{description}</p>}
       </div>
       {problems.global.length > 0 && (
         <Alert variant="danger" role="status">
           <OctagonAlertIcon />
           <AlertDescription>
-            <ul className="list-disc space-y-0.5 pl-4">
+            <ul className="slagen:list-disc slagen:space-y-0.5 slagen:pl-4">
               {problems.global.map((g, i) => (
                 <li key={i}>{g}</li>
               ))}
@@ -58,21 +58,21 @@ export function VisualView({ sla, previous, errors, parseError }: Props) {
         </Alert>
       )}
       {list.length > 0 && (
-        <div className="space-y-2">
-          <Suspense fallback={<div className="h-64 w-full animate-pulse rounded-lg bg-muted motion-reduce:animate-none" />}>
+        <div className="slagen:space-y-2">
+          <Suspense fallback={<div className="slagen:h-64 slagen:w-full slagen:animate-pulse slagen:rounded-lg slagen:bg-muted slagen:motion-reduce:animate-none" />}>
             <ServiceMap list={list} links={links} marks={marks} />
           </Suspense>
           <MapLegend links={links.length > 0} exposed={exposed} several={list.length > 1} />
         </div>
       )}
-      <div className="space-y-4">
+      <div className="slagen:space-y-4">
         {list.map((s, i) => (
-          <div key={s.key + i} className="space-y-3">
+          <div key={s.key + i} className="slagen:space-y-3">
             {multiApp && (i === 0 || list[i - 1].app !== s.app) && (
-              <p className="pt-2 text-sm">
+              <p className="slagen:pt-2 slagen:text-sm">
                 <strong>{s.app.application_name || "Application"}</strong>
                 {s.app.application_desc && (
-                  <span className="text-muted-foreground">{"  " + s.app.application_desc}</span>
+                  <span className="slagen:text-muted-foreground">{"  " + s.app.application_desc}</span>
                 )}
               </p>
             )}
@@ -86,7 +86,7 @@ export function VisualView({ sla, previous, errors, parseError }: Props) {
 
 function LegendLine({ dashed }: { dashed?: boolean }) {
   return (
-    <svg width="28" height="8" viewBox="0 0 28 8" aria-hidden className="shrink-0">
+    <svg width="28" height="8" viewBox="0 0 28 8" aria-hidden className="slagen:shrink-0">
       <line
         x1="0"
         y1="4"
@@ -104,16 +104,16 @@ function LegendLine({ dashed }: { dashed?: boolean }) {
 function MapLegend({ links, exposed, several }: { links: boolean; exposed: boolean; several: boolean }) {
   if (!links && !exposed && !several) return null;
   return (
-    <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground">
+    <div className="slagen:flex slagen:flex-wrap slagen:gap-x-5 slagen:gap-y-1 slagen:text-xs slagen:text-muted-foreground">
       {links && (
-        <span className="inline-flex items-center gap-2">
+        <span className="slagen:inline-flex slagen:items-center slagen:gap-2">
           <LegendLine />
           Uses the service&apos;s IP, labelled with the variable that holds it
         </span>
       )}
       {!links && several && <span>No service uses another service&apos;s IP</span>}
       {exposed && (
-        <span className="inline-flex items-center gap-2">
+        <span className="slagen:inline-flex slagen:items-center slagen:gap-2">
           <LegendLine dashed />
           Port open to the outside
         </span>

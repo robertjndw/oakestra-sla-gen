@@ -2,8 +2,8 @@ import { useRef, useState } from "react";
 import { useSessionContext } from "@/hooks/session-context";
 import { useSessionStorageState } from "@/hooks/use-local-storage-state";
 import { selectActiveForm, type RestoredInput } from "@/hooks/use-session";
+import { useHost } from "@/host/host-context";
 import { initialAnswers, type QuestionAnswer } from "@/lib/answers";
-import { COMPOSER_STORAGE_KEY } from "@/lib/constants";
 import type { InputFile } from "@/lib/types";
 import { AcceptedBar } from "./accepted-bar";
 import { Composer } from "./composer";
@@ -14,7 +14,8 @@ const isString = (v: unknown): v is string => typeof v === "string";
 export function ConversationPane() {
   const { state, loadCandidate, newSession, keepRefining } = useSessionContext();
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const [text, setText] = useSessionStorageState(COMPOSER_STORAGE_KEY, "", isString);
+  const { storageKey } = useHost();
+  const [text, setText] = useSessionStorageState(storageKey("composer"), "", isString);
   const [inputFile, setInputFile] = useState<InputFile | null>(null);
   // Kept here, not in the form, so the composer can build the reply from the same state.
   const [answersById, setAnswersById] = useState<Record<number, QuestionAnswer[]>>({});
@@ -59,9 +60,9 @@ export function ConversationPane() {
   };
 
   return (
-    <section aria-label="Conversation" className="flex min-h-0 min-w-0 flex-col border-b lg:border-b-0">
-      <div className="flex min-h-11 shrink-0 items-center border-b bg-card px-4">
-        <span className="text-sm font-semibold">Conversation</span>
+    <section aria-label="Conversation" className="slagen:flex slagen:min-h-0 slagen:min-w-0 slagen:flex-col slagen:border-b slagen:@5xl:border-b-0">
+      <div className="slagen:flex slagen:min-h-11 slagen:shrink-0 slagen:items-center slagen:border-b slagen:bg-card slagen:px-4">
+        <span className="slagen:text-sm slagen:font-semibold">Conversation</span>
       </div>
       <Thread
         rounds={state.rounds}
@@ -73,7 +74,7 @@ export function ConversationPane() {
         historySeed={state.sessionId ? null : state.historySeed}
         onPickExample={pickExample}
       />
-      <div className="shrink-0 border-t bg-card p-3">
+      <div className="slagen:shrink-0 slagen:border-t slagen:bg-card slagen:p-3">
         {state.accepted ? (
           <AcceptedBar draft={state.draftCount} sla={state.editedSla} onKeepRefining={keepRefining} />
         ) : (

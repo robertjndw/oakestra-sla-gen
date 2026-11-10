@@ -1,13 +1,12 @@
 import { lazy, Suspense, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { useEditorValidation } from "@/hooks/editor-validation";
 import { useSessionContext } from "@/hooks/session-context";
 import { useLocalStorageState } from "@/hooks/use-local-storage-state";
-import { useValidation } from "@/hooks/use-validation";
-import { MODE_STORAGE_KEY } from "@/lib/constants";
+import { useHost } from "@/host/host-context";
 import { slaText } from "@/lib/sla";
 import { cn } from "@/lib/utils";
-import { isEdited } from "@/hooks/use-session";
+import { isEdited, isFromHistory } from "@/hooks/use-session";
 import { diffBase } from "./diff-base";
 import { draftRounds, findDraft, OUTPUT_PANE_ID, useViewedDraft } from "./draft-view";
 import { EmptyOutput } from "./empty-output";
@@ -19,7 +18,6 @@ import { problemItems } from "./problems";
 import { VisualBoundary } from "./visual-boundary";
 import { ViewingBar } from "./viewing-bar";
 import { VisualView } from "./visual-view";
-import "./output.css";
 
 // CodeMirror is only needed once someone opens the Code tab.
 const CodeView = lazy(() => import("./code-view"));
@@ -36,24 +34,21 @@ const NO_ERRORS: string[] = [];
 
 function EditorPlaceholder() {
   return (
-    <div role="status" className="flex min-h-0 flex-1 p-4">
-      <div className="flex-1 animate-pulse rounded-lg bg-muted motion-reduce:animate-none" />
-      <span className="sr-only">Loading the editor</span>
+    <div role="status" className="slagen:flex slagen:min-h-0 slagen:flex-1 slagen:p-4">
+      <div className="slagen:flex-1 slagen:animate-pulse slagen:rounded-lg slagen:bg-muted slagen:motion-reduce:animate-none" />
+      <span className="slagen:sr-only">Loading the editor</span>
     </div>
   );
 }
 
 export function OutputPane() {
   const session = useSessionContext();
+  const { notify, storageKey } = useHost();
   const { state, setEditorText, resetToModel } = session;
   const text = state.editedSla;
-  // Before the first draft, a baseline can only be an SLA reopened from the history. It passed
-  // when it was saved, but the schema or an image may have changed since, so it is checked again.
-  const fromHistory = state.draftCount === 0 && state.historySeed !== null;
-  const trustedText = fromHistory ? "" : state.baselineText;
-  // No rounds means a new session just started (or none ever did).
-  const validation = useValidation(text, trustedText, state.rounds.length === 0);
-  const [mode, setMode] = useLocalStorageState<OutputMode>(MODE_STORAGE_KEY, "visual", isOutputMode);
+  const fromHistory = isFromHistory(state);
+  const validation = useEditorValidation();
+  const [mode, setMode] = useLocalStorageState<OutputMode>(storageKey("mode"), "visual", isOutputMode);
   const { viewed, viewDraft } = useViewedDraft();
   const drafts = useMemo(() => draftRounds(state.rounds), [state.rounds]);
   const [showDiff, setShowDiff] = useState(false);
@@ -119,7 +114,7 @@ export function OutputPane() {
     backToLatest();
     // Hand edits never reach the model, so it is worth saying that the next draft builds on the
     // latest one, not on the restored one.
-    toast.success(`Restored draft ${viewed.draft}`, {
+    notify.success(`Restored draft ${viewed.draft}`, {
       description: `It's your working copy now. The model still refines from draft ${state.draftCount}.`,
     });
   };
@@ -134,7 +129,7 @@ export function OutputPane() {
       role="region"
       aria-label="SLA"
       aria-busy={state.turnRunning}
-      className="flex min-h-[520px] flex-col overflow-hidden bg-card lg:min-h-0"
+      className="slagen:flex slagen:min-h-[520px] slagen:flex-col slagen:overflow-hidden slagen:bg-card slagen:@5xl:min-h-0"
     >
       <OutputHeader
         text={shownText}
@@ -152,22 +147,22 @@ export function OutputPane() {
         pickerRef={pickerRef}
       />
       {state.turnRunning ? (
-        <div role="progressbar" aria-label="Generating a draft" className="relative h-0.5 shrink-0 overflow-hidden bg-muted">
-          <div className="output-indeterminate absolute inset-y-0 left-0 w-1/3 animate-[output-indeterminate_1.4s_ease-in-out_infinite] rounded-full bg-primary" />
+        <div role="progressbar" aria-label="Generating a draft" className="slagen:relative slagen:h-0.5 slagen:shrink-0 slagen:overflow-hidden slagen:bg-muted">
+          <div className="slagen:absolute slagen:inset-y-0 slagen:left-0 slagen:w-1/3 slagen:animate-indeterminate slagen:rounded-full slagen:bg-primary slagen:motion-reduce:[animation-duration:4s]" />
         </div>
       ) : (
         // Holds the bar's height so the content does not jump when a turn starts or ends.
-        <div aria-hidden className="h-0.5 shrink-0" />
+        <div aria-hidden className="slagen:h-0.5 slagen:shrink-0" />
       )}
       {viewed && (
         <ViewingBar draft={viewed.draft} latest={state.draftCount} onRestore={requestRestore} onBack={backToLatest} />
       )}
       <div
         className={cn(
-          "flex min-h-0 flex-1 flex-col transition-opacity duration-200",
+          "slagen:flex slagen:min-h-0 slagen:flex-1 slagen:flex-col slagen:transition-opacity slagen:duration-200",
           // CodeMirror scrolls itself and has to reach the edges.
-          showCode ? "overflow-visible p-0" : "overflow-auto p-4 sm:p-6",
-          state.turnRunning && "opacity-55",
+          showCode ? "slagen:overflow-visible slagen:p-0" : "slagen:overflow-auto slagen:p-4 slagen:sm:p-6",
+          state.turnRunning && "slagen:opacity-55",
         )}
       >
         {showVisual && visualSla && (

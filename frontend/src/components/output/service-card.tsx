@@ -41,7 +41,7 @@ function Fact({
     <div
       data-row={row}
       data-highlighted={highlighted}
-      className="group/row col-span-2 grid grid-cols-subgrid rounded-sm transition-[background-color,box-shadow] data-[highlighted=true]:bg-accent data-[highlighted=true]:ring-4 data-[highlighted=true]:ring-accent motion-reduce:transition-none"
+      className="slagen:group/row slagen:col-span-2 slagen:grid slagen:grid-cols-subgrid slagen:rounded-sm slagen:transition-[background-color,box-shadow] slagen:data-[highlighted=true]:bg-accent slagen:data-[highlighted=true]:ring-4 slagen:data-[highlighted=true]:ring-accent slagen:motion-reduce:transition-none"
     >
       {changed ? (
         <dt>
@@ -50,26 +50,26 @@ function Fact({
             <TooltipTrigger asChild>
               <span
                 tabIndex={0}
-                className="inline-flex items-center gap-1.5 rounded-sm font-medium text-amber focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                className="slagen:inline-flex slagen:items-center slagen:gap-1.5 slagen:rounded-sm slagen:font-medium slagen:text-amber slagen:focus-visible:ring-2 slagen:focus-visible:ring-ring slagen:focus-visible:outline-none"
               >
-                <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-amber-dot" />
+                <span aria-hidden className="slagen:size-1.5 slagen:shrink-0 slagen:rounded-full slagen:bg-amber-dot" />
                 {label}
-                <span className="sr-only">(changed)</span>
+                <span className="slagen:sr-only">(changed)</span>
               </span>
             </TooltipTrigger>
             <TooltipContent>Changed since the previous draft</TooltipContent>
           </Tooltip>
         </dt>
       ) : (
-        <dt className="text-muted-foreground">{label}</dt>
+        <dt className="slagen:text-muted-foreground">{label}</dt>
       )}
-      <dd className="min-w-0 break-words">{children}</dd>
+      <dd className="slagen:min-w-0 slagen:break-words">{children}</dd>
     </div>
   );
 }
 
 const Code = ({ children }: { children: ReactNode }) => (
-  <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs break-all">{children}</code>
+  <code className="slagen:rounded slagen:bg-muted slagen:px-1.5 slagen:py-0.5 slagen:font-mono slagen:text-xs slagen:break-all">{children}</code>
 );
 
 function EnvValue({ name, value }: { name: string; value: string }) {
@@ -121,14 +121,14 @@ export function ServiceCard({ service: s, mark, links, targets }: Props) {
       id={serviceId(s)}
       data-service-name={serviceKey(ms.microservice_name)}
       data-highlighted={highlighted}
-      className="scroll-mt-4 gap-0 py-0 transition-shadow data-[errors=true]:ring-rust/60 data-[highlighted=true]:ring-2 data-[highlighted=true]:ring-primary motion-reduce:transition-none"
+      className="slagen:scroll-mt-4 slagen:gap-0 slagen:py-0 slagen:transition-shadow slagen:data-[errors=true]:ring-rust/60 slagen:data-[highlighted=true]:ring-2 slagen:data-[highlighted=true]:ring-primary slagen:motion-reduce:transition-none"
       data-errors={mark.errors.length > 0}
     >
-      <div className="flex flex-col gap-1.5 border-b bg-muted/40 px-4 py-2.5">
-        <div className="flex flex-wrap items-center gap-2">
-          <CardTitle className="text-sm font-semibold">{serviceName(s)}</CardTitle>
+      <div className="slagen:flex slagen:flex-col slagen:gap-1.5 slagen:border-b slagen:bg-muted/40 slagen:px-4 slagen:py-2.5">
+        <div className="slagen:flex slagen:flex-wrap slagen:items-center slagen:gap-2">
+          <CardTitle className="slagen:text-sm slagen:font-semibold">{serviceName(s)}</CardTitle>
           {ms.microservice_namespace && (
-            <span className="text-xs text-muted-foreground">namespace {ms.microservice_namespace}</span>
+            <span className="slagen:text-xs slagen:text-muted-foreground">namespace {ms.microservice_namespace}</span>
           )}
           {mark.added && <Badge variant="warning">New in this draft</Badge>}
           {mark.errors.length > 0 && (
@@ -136,15 +136,15 @@ export function ServiceCard({ service: s, mark, links, targets }: Props) {
           )}
         </div>
         {mark.errors.length > 0 && (
-          <ul className="list-disc space-y-0.5 pl-5 text-sm text-rust">
+          <ul className="slagen:list-disc slagen:space-y-0.5 slagen:pl-5 slagen:text-sm slagen:text-rust">
             {mark.errors.map((e, i) => (
               <li key={i}>{e}</li>
             ))}
           </ul>
         )}
       </div>
-      <CardContent className="px-4 py-3.5">
-        <dl className="grid grid-cols-[6.25rem_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm">
+      <CardContent className="slagen:px-4 slagen:py-3.5">
+        <dl className="slagen:grid slagen:grid-cols-[6.25rem_minmax(0,1fr)] slagen:gap-x-3 slagen:gap-y-2 slagen:text-sm">
           <Fact row="code" label="Image" changed={has("code")} highlighted={on("code")}>
             <Code>{ms.code || "none"}</Code>
             {ms.code && <CopyButton value={ms.code} what="image" />}
@@ -156,9 +156,9 @@ export function ServiceCard({ service: s, mark, links, targets }: Props) {
           )}
           {ports.length > 0 ? (
             <Fact row="port" label="Ports" changed={has("port")} highlighted={on("port")}>
-              <div className="flex flex-wrap items-center gap-1.5">
+              <div className="slagen:flex slagen:flex-wrap slagen:items-center slagen:gap-1.5">
                 {ports.map((p, i) => (
-                  <Badge key={i} variant="secondary" className="font-mono">
+                  <Badge key={i} variant="secondary" className="slagen:font-mono">
                     {portLabel(p)}
                   </Badge>
                 ))}
@@ -185,21 +185,21 @@ export function ServiceCard({ service: s, mark, links, targets }: Props) {
             <Fact row="addresses" label="Service IP" changed={has("addresses")} highlighted={on("addresses")}>
               <Code>{ms.addresses.rr_ip}</Code>
               <CopyButton value={ms.addresses.rr_ip} what="service IP" />{" "}
-              <span className="text-xs text-muted-foreground">
+              <span className="slagen:text-xs slagen:text-muted-foreground">
                 {users.length ? "used by " + joinWords(users) : "not used by other services"}
               </span>
             </Fact>
           )}
           {(ms.environment ?? []).length > 0 && (
             <Fact row="environment" label="Environment" changed={has("environment")} highlighted={on("environment")}>
-              <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 font-mono text-xs">
+              <div className="slagen:grid slagen:grid-cols-[auto_minmax(0,1fr)] slagen:gap-x-3 slagen:gap-y-1 slagen:font-mono slagen:text-xs">
                 {(ms.environment ?? []).map((entry, i) => {
                   const { key, value } = splitEnv(entry);
                   return (
                     // Keyed by name as well, so a revealed value can't pass to another variable when the list changes.
-                    <div key={key + i} className="group/env col-span-2 grid grid-cols-subgrid">
-                      <span className="text-muted-foreground">{key}</span>
-                      <span className="break-all">
+                    <div key={key + i} className="slagen:group/env slagen:col-span-2 slagen:grid slagen:grid-cols-subgrid">
+                      <span className="slagen:text-muted-foreground">{key}</span>
+                      <span className="slagen:break-all">
                         {/* Keyed by value, so a revealed secret is masked again when a new draft changes it. */}
                         <EnvValue key={value} name={key} value={value} />
                         {targets
@@ -208,7 +208,7 @@ export function ServiceCard({ service: s, mark, links, targets }: Props) {
                             <button
                               key={serviceId(t.target)}
                               type="button"
-                              className="ml-2 rounded text-primary underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                              className="slagen:ml-2 slagen:rounded slagen:text-primary slagen:underline-offset-2 slagen:hover:underline slagen:focus-visible:ring-2 slagen:focus-visible:ring-ring slagen:focus-visible:outline-none"
                               onClick={() => focusService(t.target)}
                             >
                               reaches {serviceName(t.target)}

@@ -1,5 +1,5 @@
 import { useCallback, useReducer, useRef } from "react";
-import { answerSession, deleteSession, fetchTurnProgress, newTurnId, startSession } from "@/lib/api";
+import { deleteSession, runTurn } from "@/lib/api";
 import type { ApiResult, SessionResult } from "@/lib/api";
 import type { QuestionAnswer } from "@/lib/answers";
 import { DEFAULT_SETTINGS } from "@/lib/constants";
@@ -157,6 +157,9 @@ export function initialState(): SessionState {
 }
 
 export const isEdited = (s: SessionState) => s.editedSla !== s.baselineText;
+
+/** The editor holds an SLA reopened from the history and the model hasn't drafted yet. */
+export const isFromHistory = (s: SessionState) => s.draftCount === 0 && s.historySeed !== null;
 
 /** The open question list of the newest round, if the user has not replied to it yet. */
 export function selectActiveForm(s: SessionState): QuestionRound | null {
@@ -441,27 +444,6 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
   }
 }
 
-export const TURN_POLL_INTERVAL_MS = 1000;
-
-/**
- * Polls a turn's progress until `stopped()` says its request has settled. A failed poll is not a
- * reason to stop: the server answers 404 until the POST has reached it, and the POST, not the
- * poll, decides how the turn ends. At most one poll is in flight at a time.
- */
-export async function pollTurnProgress(
-  turnId: string,
-  stopped: () => boolean,
-  onAttempts: (attempts: Attempt[]) => void,
-): Promise<void> {
-  for (;;) {
-    await new Promise((resolve) => setTimeout(resolve, TURN_POLL_INTERVAL_MS));
-    if (stopped()) return;
-    const res = await fetchTurnProgress(turnId);
-    if (stopped()) return;
-    if (res.status === 200 && Array.isArray(res.body.attempts)) onAttempts(res.body.attempts);
-  }
-}
-
 export interface SessionApi {
   state: SessionState;
   /** True once a session exists on the server, which also locks the settings. */
@@ -492,7 +474,20 @@ export interface SessionApi {
   dismissPendingDraft: () => void;
 }
 
-export function useSessionController(init: () => SessionState = initialState): SessionApi {
+export interface SessionOptions {
+  /** Sent as the customer ID of every new session, whatever the settings say. */
+  fixedCustomerId?: string | null;
+  /**
+   * Where "New session" starts over from. Without one it clears everything. The dashboard's
+   * Generate service tab passes the application's deployed services here.
+   */
+  seed?: { title: string; sla: string } | null;
+}
+
+export function useSessionController(
+  init: () => SessionState = initialState,
+  { fixedCustomerId = null, seed = null }: SessionOptions = {},
+): SessionApi {
   const [state, dispatch] = useReducer(sessionReducer, undefined, init);
   const tokenRef = useRef(0);
   const { sessionId, turnRunning, settings } = state;
@@ -514,21 +509,25 @@ export function useSessionController(init: () => SessionState = initialState): S
         freeze: opts.freeze,
         now: Date.now(),
       });
-      const turnId = newTurnId();
-      let settled = false;
-      // tokenRef also stops it when New session or a history entry replaces the conversation.
-      void pollTurnProgress(
-        turnId,
-        () => settled || tokenRef.current !== token,
-        (attempts) => dispatch({ type: "turn-progress", token, attempts }),
+      const res = await runTurn(
+        first
+          ? {
+              kind: "start",
+              settings: fixedCustomerId ? { ...settings, customerId: fixedCustomerId } : settings,
+              description: message,
+              file: opts.file,
+            }
+          : { kind: "answer", sessionId, text: message },
+        {
+          onAttempts: (attempts) => dispatch({ type: "turn-progress", token, attempts }),
+          // New session or a history entry replacing the conversation abandons the turn. Its
+          // response, if one still comes, is dropped by the token check in the reducer.
+          stopped: () => tokenRef.current !== token,
+        },
       );
-      const res = first
-        ? await startSession(settings, message, opts.file, turnId)
-        : await answerSession(sessionId, message, turnId);
-      settled = true;
       dispatch({ type: "response", token, res, first, message, file: opts.file });
     },
-    [turnRunning, sessionId, settings],
+    [turnRunning, sessionId, settings, fixedCustomerId],
   );
 
   const send = useCallback(
@@ -564,8 +563,8 @@ export function useSessionController(init: () => SessionState = initialState): S
   const newSession = useCallback(() => {
     const token = ++tokenRef.current;
     if (sessionId) void deleteSession(sessionId);
-    dispatch({ type: "new-session", token });
-  }, [sessionId]);
+    dispatch(seed ? { type: "open-history", token, title: seed.title, sla: seed.sla } : { type: "new-session", token });
+  }, [sessionId, seed]);
 
   const openFromHistory = useCallback(
     (entry: { title: string; sla: string }) => {

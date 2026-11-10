@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StatusHead } from "@/components/conversation/status-head";
 import { Thread } from "@/components/conversation/thread";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { EditorValidationProvider } from "@/hooks/editor-validation-provider";
 import { SessionContext } from "@/hooks/session-context";
 import { initialState, type SessionApi, type SessionState } from "@/hooks/use-session";
 import { MODE_STORAGE_KEY } from "@/lib/constants";
@@ -11,8 +12,6 @@ import type { Sla } from "@/lib/types";
 import { slaText } from "@/lib/sla";
 import { clearViewedDraft, type DraftRound } from "./draft-view";
 import { OutputPane } from "./output-pane";
-
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const slaFor = (memory: number): Sla => ({
   applications: [{ application_name: "a", microservices: [{ microservice_name: "web", memory }] }],
@@ -56,19 +55,21 @@ function fakeApi(state: SessionState) {
 function pane(api: SessionApi) {
   return (
     <SessionContext.Provider value={api}>
-      <TooltipProvider>
-        <OutputPane />
-        <Thread
-          rounds={api.state.rounds}
-          activeFormId={null}
-          answers={[]}
-          onAnswersChange={() => {}}
-          loadCandidate={() => {}}
-          newSession={() => {}}
-          historySeed={null}
-          onPickExample={() => {}}
-        />
-      </TooltipProvider>
+      <EditorValidationProvider>
+        <TooltipProvider>
+          <OutputPane />
+          <Thread
+            rounds={api.state.rounds}
+            activeFormId={null}
+            answers={[]}
+            onAnswersChange={() => {}}
+            loadCandidate={() => {}}
+            newSession={() => {}}
+            historySeed={null}
+            onPickExample={() => {}}
+          />
+        </TooltipProvider>
+      </EditorValidationProvider>
     </SessionContext.Provider>
   );
 }

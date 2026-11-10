@@ -28,14 +28,14 @@ export function QuestionForm({ questions, answers, onChange, frozen, interactive
   useEffect(() => () => releaseFields(refs), [refs]);
 
   return (
-    <ol className="divide-y overflow-hidden rounded-lg border bg-card" aria-label="Questions from the model">
+    <ol className="slagen:divide-y slagen:overflow-hidden slagen:rounded-lg slagen:border slagen:bg-card" aria-label="Questions from the model">
       {questions.map((q, i) => {
         const answer = answers[i] ?? { mode: q.assumption ? "keep" : "answer", text: "" };
         const ref = refs[i];
         return (
           <li
             key={i}
-            className="flex gap-3 px-3 py-3"
+            className="slagen:flex slagen:gap-3 slagen:px-3 slagen:py-3"
             onPointerEnter={() => highlightField(ref, "hover")}
             onPointerLeave={() => unhighlightField(ref, "hover")}
             onFocus={() => highlightField(ref, "focus")}
@@ -43,16 +43,16 @@ export function QuestionForm({ questions, answers, onChange, frozen, interactive
               if (!e.currentTarget.contains(e.relatedTarget as Node | null)) unhighlightField(ref, "focus");
             }}
           >
-            <span aria-hidden className="w-3 shrink-0 text-right text-muted-foreground text-xs tabular-nums leading-5">
+            <span aria-hidden className="slagen:w-3 slagen:shrink-0 slagen:text-right slagen:text-muted-foreground slagen:text-xs slagen:tabular-nums slagen:leading-5">
               {i + 1}
             </span>
-            <div className="flex min-w-0 flex-1 flex-col gap-2">
+            <div className="slagen:flex slagen:min-w-0 slagen:flex-1 slagen:flex-col slagen:gap-2">
               {/* The topic is the short handle, so it leads and the full question follows. */}
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0 space-y-0.5">
-                  <span className="sr-only">{`Question ${i + 1}: `}</span>
-                  {q.topic && <p className="text-sm font-medium">{q.topic}</p>}
-                  <p className={q.topic ? "text-muted-foreground text-sm" : "text-sm font-medium"}>{q.question}</p>
+              <div className="slagen:flex slagen:items-start slagen:justify-between slagen:gap-2">
+                <div className="slagen:min-w-0 slagen:space-y-0.5">
+                  <span className="slagen:sr-only">{`Question ${i + 1}: `}</span>
+                  {q.topic && <p className="slagen:text-sm slagen:font-medium">{q.topic}</p>}
+                  <p className={q.topic ? "slagen:text-muted-foreground slagen:text-sm" : "slagen:text-sm slagen:font-medium"}>{q.question}</p>
                 </div>
                 {ref && <ShowField fieldRef={ref} />}
               </div>
@@ -95,7 +95,7 @@ function ShowField({ fieldRef }: { fieldRef: FieldRef }) {
       type="button"
       variant="ghost"
       size="xs"
-      className="-mt-0.5 shrink-0 text-muted-foreground"
+      className="slagen:-mt-0.5 slagen:shrink-0 slagen:text-muted-foreground"
       aria-label={`Show ${describeFieldRef(fieldRef)}`}
       onClick={() => focusField(fieldRef)}
     >
@@ -107,8 +107,8 @@ function ShowField({ fieldRef }: { fieldRef: FieldRef }) {
 
 function Assumed({ text }: { text: string }) {
   return (
-    <p className="min-w-0 text-sm">
-      <span className="mr-2 text-amber text-xs font-medium">Assumed</span>
+    <p className="slagen:min-w-0 slagen:text-sm">
+      <span className="slagen:mr-2 slagen:text-amber slagen:text-xs slagen:font-medium">Assumed</span>
       {text}
     </p>
   );
@@ -130,7 +130,7 @@ function AnswerBox({
   return (
     <Textarea
       rows={1}
-      className="min-h-9 resize-y"
+      className="slagen:min-h-9 slagen:resize-y"
       aria-label={`Answer to question ${n}`}
       placeholder={placeholder}
       value={value}
@@ -165,7 +165,7 @@ function AssumptionAnswer({
 
   if (answer.mode === "keep") {
     return (
-      <div className="flex items-baseline justify-between gap-3">
+      <div className="slagen:flex slagen:items-baseline slagen:justify-between slagen:gap-3">
         <Assumed text={assumption} />
         <Button
           ref={changeRef}
@@ -182,7 +182,7 @@ function AssumptionAnswer({
   }
   return (
     <div
-      className="flex flex-col items-start gap-1"
+      className="slagen:flex slagen:flex-col slagen:items-start slagen:gap-1"
       // Leaving an empty box means the person changed their mind, so show the assumption again.
       // Anything typed stays open so the answer is still visible. Focus moving to the "keep"
       // link counts as staying inside, otherwise the link would vanish while it gets focus.
@@ -197,13 +197,13 @@ function AssumptionAnswer({
         type="button"
         variant="link"
         size="xs"
-        className="h-auto max-w-full px-0 text-muted-foreground"
+        className="slagen:h-auto slagen:max-w-full slagen:px-0 slagen:text-muted-foreground"
         onClick={() => {
           refocusChange.current = true;
           onChange({ mode: "keep" });
         }}
       >
-        <span className="truncate">{`Keep the assumption (${assumption}) instead`}</span>
+        <span className="slagen:truncate">{`Keep the assumption (${assumption}) instead`}</span>
       </Button>
     </div>
   );
@@ -211,9 +211,9 @@ function AssumptionAnswer({
 
 function Reply({ q, answer, keepAll }: { q: Clarification; answer?: QuestionAnswer; keepAll: boolean }) {
   const text = keepAll || !answer ? "" : answeredText(answer);
-  if (text) return <p className="text-sm text-primary">{`You: ${text}`}</p>;
+  if (text) return <p className="slagen:text-sm slagen:text-primary">{`You: ${text}`}</p>;
   return (
-    <p className="text-muted-foreground text-sm">
+    <p className="slagen:text-muted-foreground slagen:text-sm">
       {q.assumption ? `Kept: ${q.assumption}` : "Left to the model"}
     </p>
   );

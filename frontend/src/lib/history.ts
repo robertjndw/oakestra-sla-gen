@@ -39,21 +39,21 @@ export function parseHistory(raw: string | null): HistoryEntry[] {
   return parseStored(raw, EMPTY, isStoredHistory).entries;
 }
 
-export const readRawHistory = () => readRaw("local", HISTORY_STORAGE_KEY);
+export const readRawHistory = (key: string = HISTORY_STORAGE_KEY) => readRaw("local", key);
 
-export const readHistory = () => parseHistory(readRawHistory());
+export const readHistory = (key: string = HISTORY_STORAGE_KEY) => parseHistory(readRawHistory(key));
 
 /**
  * Saves the list, dropping the oldest entries until it fits the storage quota. Leaves storage
  * alone when not even the newest entry fits, so one oversized SLA can't wipe the history.
  */
-export function writeHistory(entries: HistoryEntry[]): boolean {
+export function writeHistory(entries: HistoryEntry[], key: string = HISTORY_STORAGE_KEY): boolean {
   if (entries.length === 0) {
-    removeStored("local", HISTORY_STORAGE_KEY);
+    removeStored("local", key);
     return true;
   }
   for (let n = Math.min(entries.length, MAX_HISTORY_ENTRIES); n > 0; n--) {
-    if (writeStored("local", HISTORY_STORAGE_KEY, { version: HISTORY_VERSION, entries: entries.slice(0, n) })) {
+    if (writeStored("local", key, { version: HISTORY_VERSION, entries: entries.slice(0, n) })) {
       return true;
     }
   }
